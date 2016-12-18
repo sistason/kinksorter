@@ -6,15 +6,10 @@ from database import Database
 from movie import Movie
 
 class KinkSorter():
-    ...
-    # database handling
-    # foreach movie:
-    #   rename + change database-item
-    #   TODO: renaming per argv with specific properties
 
     def __init__(self, storage_root_path):
         self.storage_root_path = storage_root_path
-        database_path = path.join(self.storage_root_path, '.movietagger_db')
+        database_path = path.join(self.storage_root_path, '.kinksorter_db')
         self.database = Database(database_path)
 
     def update_database(self):
