@@ -41,6 +41,7 @@ def query_api(type_, query):
 
     if ret is not None:
         _decoded = json.loads(ret.text)
+        # Validation
         if _decoded.get('Response', False):
             _decoded.pop('Response')
             return _decoded
@@ -54,6 +55,8 @@ def query_for_id(kink_id):
 
 def query_for_name(name):
     ...
+    return None
 
 def query_for_date(date):
     ...
+    return None

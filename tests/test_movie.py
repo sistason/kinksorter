@@ -18,14 +18,14 @@ class MovieShould(unittest.TestCase):
             self.has_internet_connection = False
 
     def test_properties_stay_unmodified(self):
-        vikings = Movie('', {'imdbID': "tt2306299"})
-        assert_that(vikings.properties.get('imdbID'), equal_to('tt2306299'))
+        m_ = Movie('', {'id': "12345"})
+        assert_that(m_.properties.get('id'), equal_to('12345'))
 
-    def test_recognize_imdbID(self):
+    def test_recognize_kinkid(self):
         if not self.has_internet_connection:
             self.skipTest('No Internet')
-        vikings = Movie("/tt2306299.avi")
-        assert_that(vikings.properties.get('imdbID'), equal_to('tt2306299'))
+        m_ = Movie("/12345.avi")
+        assert_that(m_.properties.get('id'), equal_to('12345'))
 
 if __name__ == "__main__":
     unittest.main()
