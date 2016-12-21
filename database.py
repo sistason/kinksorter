@@ -17,8 +17,13 @@ class Database():
         self._api = api
 
     def add_movie(self, movie):
-        # TODO: check duplicate
-        self.movies[movie.file_path] = movie
+        if not self.check_movie_duplicates(movie):
+            self.movies[movie.file_path] = movie
+
+    def check_movie_duplicates(self, movie):
+        for m_ in self.movies:
+            if movie == m_:
+                return True
 
     def read(self):
         if not path.exists(self._path):
