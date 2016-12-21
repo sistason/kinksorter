@@ -3,35 +3,33 @@
 import unittest
 import socket
 from hamcrest import *
+from datetime import date
 
-from utils import *
+from api import KinkAPI
 
 
-class OmdbAPIShould(unittest.TestCase):
+class KinkAPIShould(unittest.TestCase):
 
     def setUp(self):
         try:
             socket.setdefaulttimeout(2)
             socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(("8.8.8.8", 53))
-            self.has_internet_connection = True
         except Exception:
-            self.has_internet_connection = False
-
-    def test_query_id(self):
-        if not self.has_internet_connection:
             self.skipTest('No Internet')
-        assert_that(query_api('id', "12345").get('TODO',''), equal_to('TODO'))
+        self.api = KinkAPI()
 
-    def test_query_date(self):
-        if not self.has_internet_connection:
-            self.skipTest('No Internet')
-        assert_that(query_api('date', "2016-12-12").get('TODO',''), equal_to('TODO'))
+    def test_parsing(self):
+        properties = self.api.query('id', "7675")
+        assert_that(properties.get('title', ''),
+                    equal_to('Holly Heart - Former collegiate athlete upside down, butt plugged, and made to cum!'))
+        assert_that(properties.get('date', None),
+                    equal_to(date(2009, 12, 17)))
+        assert_that(properties.get('performers', []),
+                    contains('Holly Heart'))
+        assert_that(properties.get('site', ''),
+                    equal_to('Device Bondage'))
 
-    def test_query_name(self):
-        if not self.has_internet_connection:
-            self.skipTest('No Internet')
-        assert_that(query_api('name', "").get('TODO', ''), equal_to('TODO'))
-
+suite = unittest.TestLoader().loadTestsFromTestCase(KinkAPIShould)
 
 if __name__ == "__main__":
     unittest.main()

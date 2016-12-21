@@ -4,16 +4,20 @@ import os
 import subprocess
 from database import Database
 from movie import Movie
+from api import KinkAPI
 
 class KinkSorter():
 
     def __init__(self, storage_root_path):
         self.storage_root_path = storage_root_path
+        self.api = KinkAPI()
         database_path = path.join(self.storage_root_path, '.kinksorter_db')
-        self.database = Database(database_path)
+        self.database = Database(database_path, self.api)
+        self.database.read()
 
     def update_database(self):
         self._scan_directory(self.storage_root_path, 10)
+        self.database.write()
 
     def _scan_directory(self, dir_, recursion_depth):
         recursion_depth -= 1
@@ -23,7 +27,7 @@ class KinkSorter():
                 if os.access(full_path, os.R_OK):
                     mime_type = subprocess.check_output(['file', '-b', '--mime-type', full_path])
                     if mime_type and mime_type.decode('utf-8').startswith('video/'):
-                        self.database.add_movie(Movie(full_path))
+                        self.database.add_movie(Movie(full_path, self.api))
             if entry.is_dir():
                 if recursion_depth > 0:
                     self._scan_directory(full_path, recursion_depth)
@@ -44,13 +48,9 @@ if __name__ == '__main__':
 
     argparser.add_argument('storage_root_path', type=argcheck_dir,
                            help='Set the root path of the storage')
-    argparser.add_argument('--schema', '-s', type=str,
-                           help='Restructure to given schema')
 
     args = argparser.parse_args()
 
     m = KinkSorter(args.storage_root_path)
     m.update_database()
-
-    if args.schema:
-        m.sort(args.schema)
+    # m.sort()

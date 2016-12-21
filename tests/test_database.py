@@ -7,29 +7,31 @@ import tempfile
 
 from database import Database
 from movie import Movie
+from api import KinkAPI
 
 
 class DatabaseShould(unittest.TestCase):
 
     def setUp(self):
         self.temp_database_file = tempfile.NamedTemporaryFile()
-        self.database = Database(self.temp_database_file.name)
+        self.temp_movie_file = tempfile.NamedTemporaryFile(suffix="12345")
+        self.api = KinkAPI()
+        self.database = Database(self.temp_database_file.name, self.api)
 
-    def test_0_initial(self):
+    def test_workflow(self):
         assert_that(self.database.movies, equal_to({}))
 
-    def test_1_add_movie(self):
-        m_ = Movie("/foo/12345.avi", {'foo':'bar'})
+        m_ = Movie(self.temp_movie_file.name, self.api, {'foo': 'bar'})
         self.database.add_movie(m_)
-        assert_that(self.database.movies, equal_to({"/foo/12345.avi":m_}))
+        assert_that(self.database.movies, equal_to({self.temp_movie_file.name: m_}))
 
-    def test_2_write_database(self):
-        self.database.write_database()
+        self.database.write()
         assert_that(os.stat(self.temp_database_file.name).st_size, greater_than(10))
 
-    def test_3_reread_database(self):
-        self.database_new = Database(self.temp_database_file.name)
-        assert_that(self.database_new.movies, equal_to(self.database.movies))
+        database_instance_2 = Database(self.temp_database_file.name, self.api)
+        database_instance_2.read()
+        assert_that(database_instance_2.movies.get(self.temp_movie_file.name),
+                    equal_to(self.database.movies.get(self.temp_movie_file.name)))
 
     def tearDown(self):
         self.temp_database_file.close()
