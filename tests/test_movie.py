@@ -2,7 +2,7 @@
 
 import unittest
 from hamcrest import *
-import socket
+import tempfile
 
 from movie import Movie
 
@@ -10,7 +10,8 @@ from movie import Movie
 class MovieShould(unittest.TestCase):
 
     def setUp(self):
-        self.movie = Movie('', None, {'id': "12345"})
+        self.temp_movie_file = tempfile.NamedTemporaryFile()
+        self.movie = Movie(self.temp_movie_file.name, {}, {'id': "12345"})
 
     def test_properties_stay_unmodified(self):
         assert_that(self.movie.properties.get('id'), equal_to('12345'))

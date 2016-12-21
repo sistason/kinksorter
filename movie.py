@@ -1,4 +1,3 @@
-import api
 import re
 import logging
 import datetime
@@ -8,20 +7,18 @@ class Movie():
     UNLIKELY_NUMBERS = {'quality':[360,480,720,1080,1440,2160], 'years':range(1950,2050)}
     properties = {'title': '', 'performers': [], 'date': datetime.date(1970, 1, 1), 'site': '', 'id': 0}
 
-    def __init__(self, file_path, api, properties={}):
+    def __init__(self, file_path, settings, properties={}):
         self.file_path = file_path
         self.properties.update(properties)
-        self.api = api
+        self.api = settings.get('api', None)
+        self.interactive = settings.get('interactive', True)
         self.ALL_UNLIKELY_NUMBERS = []
         [self.ALL_UNLIKELY_NUMBERS.extend(i) for i in self.UNLIKELY_NUMBERS.values()]
 
-        if properties:
-            return
-
         base_path, filename = file_path.rsplit('/',1)
-        base_path, dirname = base_path.rsplit('/',1) if '/' in base_path else ('', base_path)
-        self.base_name, self.extension = filename.rsplit('.',1)
+        self.base_name, self.extension = filename.rsplit('.', 1) if '.' in filename else (filename, '')
 
+    def update_details(self):
         kinkids = self.get_kinkids(self.base_name)
         if kinkids:
             if len(kinkids) > 1:
@@ -32,7 +29,7 @@ class Movie():
             kinkid = self.get_kinkid_through_image_recognition()
 
         if kinkid:
-            result = api.query('id', kinkid)
+            result = self.api.query('id', kinkid)
             if self.interactive_confirm(result):
                 self.properties.update(result)
         else:
@@ -80,9 +77,9 @@ class Movie():
         return {}
 
     def interactive_confirm(self, result):
-        print('Is this okay?')
-        print('{} -> {}'.format(self.file_path, self.format_movie(result)))
-        answer = input('Y, n?')
+        print('\told: {}'.format(self.base_name))
+        print('\tnew: {}'.format(self.format_movie(result)))
+        answer = input('Is this okay? Y, n?') if self.interactive else 'Y'
         return True if not answer or answer.lower().startswith('y') else False
 
     def interactive_choose_kinkid(self, likely_ids):
@@ -102,7 +99,7 @@ class Movie():
 
     def format_movie(self, properties):
         return '{site} - {date} - {title} [{perfs}] ({id})'.format(
-            site=properties.get('site', ''),
+            site=properties.get('site', '').replace(' ',''),
             date=properties.get('date', ''),
             title=properties.get('title', ''),
             perfs=', '.join(properties.get('performers', '')),

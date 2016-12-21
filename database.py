@@ -12,18 +12,24 @@ class Database():
     _path = ''
     movies = {} # filename:Movie(),
 
-    def __init__(self, database_path, api):
+    def __init__(self, database_path, settings):
         self._path = database_path
-        self._api = api
+        self._api = settings.get('api')
 
     def add_movie(self, movie):
-        if bool(movie) and not self.check_movie_duplicates(movie):
+        if not self.check_movie_duplicates(movie):
             self.movies[movie.file_path] = movie
 
     def check_movie_duplicates(self, movie):
-        for m_ in self.movies:
+        for m_ in self.movies.values():
             if movie == m_:
                 return True
+
+    def update_all_movies(self):
+        n = len(self.movies)
+        for i, movie in enumerate(self.movies.values()):
+            logging.info('Fetching details for movie "{}"... ({}/{})'.format(movie.base_name, i, n))
+            movie.update_details()
 
     def read(self):
         if not path.exists(self._path):
