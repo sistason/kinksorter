@@ -20,9 +20,9 @@ class Movie():
 
         base_path, filename = file_path.rsplit('/',1)
         base_path, dirname = base_path.rsplit('/',1) if '/' in base_path else ('', base_path)
-        base_name, extension = filename.rsplit('.',1)
+        self.base_name, self.extension = filename.rsplit('.',1)
 
-        kinkids = self.get_kinkids(base_name)
+        kinkids = self.get_kinkids(self.base_name)
         if kinkids:
             if len(kinkids) > 1:
                 kinkid = self.interactive_choose_kinkid(kinkids)
@@ -36,7 +36,7 @@ class Movie():
             if self.interactive_confirm(result):
                 self.properties.update(result)
         else:
-            t_ = re.search(r"\d{4}\W\d{1,2}\W\d{1,2}", base_name)
+            t_ = re.search(r"\d{4}\W\d{1,2}\W\d{1,2}", self.base_name)
             likely_date = t_.group(0) if t_ else ''
             self.properties = self.interactive_query(likely_date)
 
