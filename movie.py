@@ -27,11 +27,15 @@ class Movie():
                 kinkid = self.interactive_choose_kinkid(kinkids)
             else:
                 kinkid = kinkids[0]
+        else:
+            kinkid = self.get_kinkid_through_image_recognition()
 
+        if kinkid:
             result = api.query('id', kinkid)
             if result.get('title', '') and self.interactive_confirm(result):
                 self.properties = result
                 return
+
 
         t_ = re.search(r"\d{4}\W\d{1,2}\W\d{1,2}", base_name)
         likely_date = t_.group(0) if t_ else ''
@@ -92,6 +96,10 @@ class Movie():
             except KeyboardInterrupt:
                 return 0
         return int(id_)
+
+    def get_kinkid_through_image_recognition(self):
+        # TODO: OpenCV Project :)
+        return 0
 
     def __eq__(self, other):
         return (self.properties.get('title','') == other.properties.get('title','')

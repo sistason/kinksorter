@@ -6,6 +6,7 @@ from database import Database
 from movie import Movie
 from api import KinkAPI
 
+
 class KinkSorter():
 
     def __init__(self, storage_root_path):
