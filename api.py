@@ -1,64 +1,55 @@
 import requests
-import json
 import bs4
 import re
 import logging
 import datetime
 
+
 class KinkAPI():
+    _cookies = None
+    _headers = {}
 
     def __init__(self):
-        self._cache = []
-        self._cookies = self.get_kink_cookies()
-        self._headers = {'Accept-Language':'en-US,en;q=0.5'}
+        self.set_kink_cookies()
+        self.set_kink_headers()
 
-    def get_kink_cookies(self):
+    def set_kink_headers(self):
+        # TODO: randomized user-agent?
+        self._headers = {'Accept-Language': 'en-US,en;q=0.5'}
+
+    def set_kink_cookies(self):
         _ret = requests.get("http://www.kink.com")
         _cookies = _ret.cookies
         _cookies['viewing-preferences']='straight,gay'
-        return _cookies
-
-
-    def update_cache(self):
-        try:
-            _ret = requests.get("http://www.iafd.com/distrib.rme/distrib=3259/kink%2ecom.htm")
-            _bs = bs4.BeautifulSoup(_ret.text, 'html5lib')
-            _entries = _bs.find(id="distable").find_all("tr")[1:]
-            self._cache = [(i.text, i.a) for i in _entries]
-        except requests.HTTPError as e:
-            self._cache = []
+        self._cookies = _cookies
 
     def query(self, type_, query):
-        ret = None
+        ret = {}
         if type_ == 'id':
             ret = self.query_for_id(query)
-        if type_ == 'name':
+        elif type_ == 'name':
             ret = self.query_for_name(query)
-        if type_ == 'date':
+        elif type_ == 'date':
             ret = self.query_for_date(query)
 
-        # TODO Validation
-        return ret
-
-    def query_for_id(self, kink_id):
-        return self.get_directly_id(kink_id)
-
-        _kinklist_re = re.compile(r'\D{}\D'.format(kink_id))
-        matches = [i for i in self._cache if re.search(_kinklist_re, i[0])]
-        print([i[0] for i in matches])
-        if not matches:
-            return self.get_directly_id(kink_id)
+        if ret.get('title', ''):
+            return ret
+        return {}
 
     def query_for_name(self, name):
+        # TODO: Not (yet) possible without a cache/list
+        properties = {}
         ...
-        return None
+        return properties
 
     def query_for_date(self, date):
+        # TODO: Not (yet) possible without a cache/list
+        properties = {}
         ...
-        return None
+        return properties
 
-    def get_directly_id(self, kink_id):
-        properties = {'title': '', 'performers': [], 'date': datetime.date(1970,1,1), 'site': '', 'id': kink_id}
+    def query_for_id(self, kink_id):
+        properties = {"id":kink_id}
         ret = requests.get("http://kink.com/shoot/{}".format(kink_id), cookies=self._cookies, headers=self._headers)
         if ret:
             _bs = bs4.BeautifulSoup(ret.text, "html5lib")

@@ -3,6 +3,7 @@ import re
 import logging
 import datetime
 
+
 class Movie():
     UNLIKELY_NUMBERS = {'quality':[360,480,720,1080,1440,2160], 'years':range(1950,2050)}
     properties = {'title': '', 'performers': [], 'date': datetime.date(1970, 1, 1), 'site': '', 'id': 0}
@@ -32,14 +33,12 @@ class Movie():
 
         if kinkid:
             result = api.query('id', kinkid)
-            if result.get('title', '') and self.interactive_confirm(result):
-                self.properties = result
-                return
-
-
-        t_ = re.search(r"\d{4}\W\d{1,2}\W\d{1,2}", base_name)
-        likely_date = t_.group(0) if t_ else ''
-        self.properties = self.interactive_query(likely_date)
+            if self.interactive_confirm(result):
+                self.properties.update(result)
+        else:
+            t_ = re.search(r"\d{4}\W\d{1,2}\W\d{1,2}", base_name)
+            likely_date = t_.group(0) if t_ else ''
+            self.properties = self.interactive_query(likely_date)
 
     def get_kinkids(self, base_name):
         base_name = re.sub('|'.join(str(i)+'p' for i in self.UNLIKELY_NUMBERS['quality']),
@@ -82,7 +81,7 @@ class Movie():
 
     def interactive_confirm(self, result):
         print('Is this okay?')
-        print('{} -> {}'.format(self.file_path, self))
+        print('{} -> {}'.format(self.file_path, self.format_movie(result)))
         answer = input('Y, n?')
         return True if not answer or answer.lower().startswith('y') else False
 
@@ -101,6 +100,14 @@ class Movie():
         # TODO: OpenCV Project :)
         return 0
 
+    def format_movie(self, properties):
+        return '{site} - {date} - {title} [{perfs}] ({id})'.format(
+            site=properties.get('site', ''),
+            date=properties.get('date', ''),
+            title=properties.get('title', ''),
+            perfs=', '.join(properties.get('performers', '')),
+            id=properties.get('id', ''))
+
     def __eq__(self, other):
         return (self.properties.get('title','') == other.properties.get('title','')
                 and self.properties.get('performers', []) == other.properties.get('performers', [])
@@ -109,9 +116,11 @@ class Movie():
                 and self.properties.get('id',0) == other.properties.get('id',0))
 
     def __str__(self):
-        return '{site} - {date} - {title} [{perfs}] ({id})'.format(
-            site=self.properties.get('site', ''),
-            date=self.properties.get('date', ''),
-            title=self.properties.get('title', ''),
-            perfs=', '.join(self.properties.get('performers', '')),
-            id=self.properties.get('id', ''))
+        return self.format_movie(self.properties)
+
+    def __bool__(self):
+        return bool(self.properties.get('title',False)
+                and self.properties.get('performers', False)
+                and self.properties.get('site', False)
+                and 'date' in self.properties and int(self.properties['date'].strftime("%s")) > 0
+                and self.properties.get('id', 0) > 0)

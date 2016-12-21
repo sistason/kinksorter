@@ -1,5 +1,5 @@
 import logging
-import datetime
+import json
 
 from collections import OrderedDict
 from os import path, access, W_OK, R_OK
@@ -17,7 +17,7 @@ class Database():
         self._api = api
 
     def add_movie(self, movie):
-        if not self.check_movie_duplicates(movie):
+        if bool(movie) and not self.check_movie_duplicates(movie):
             self.movies[movie.file_path] = movie
 
     def check_movie_duplicates(self, movie):
