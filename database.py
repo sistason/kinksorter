@@ -21,8 +21,9 @@ class Database():
             self.movies[movie.file_path] = movie
 
     def check_movie_duplicates(self, movie):
-        for m_ in self.movies.values():
-            if movie == m_:
+        """ Checks for duplicate files, not duplicate movies. """
+        for m_ in self.movies.keys():
+            if movie.file_path == m_:
                 logging.debug('Movie "{}" was already in the database'.format(movie))
                 return True
 

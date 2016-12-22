@@ -117,8 +117,11 @@ class Movie():
 def format_movie(movie):
     if movie_is_empty(movie):
         return '<untagged> '+movie.base_name
+    ret = ''
+    if not movie_is_filled(movie):
+        ret = movie.base_name + ' <incomplete_tagged> | '
 
-    ret = '{site} - {date} - {title} [{perfs}] ({id})'.format(
+    ret += '{site} - {date} - {title} [{perfs}] ({id})'.format(
         site=movie.properties.get('site', '').replace(' ', ''),
         date=movie.properties.get('date', ''),
         title=movie.properties.get('title', ''),
