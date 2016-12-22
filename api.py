@@ -23,19 +23,6 @@ class KinkAPI():
         _cookies['viewing-preferences']='straight,gay'
         self._cookies = _cookies
 
-    def query(self, type_, query):
-        ret = {}
-        if type_ == 'id':
-            ret = self.query_for_id(query)
-        elif type_ == 'name':
-            ret = self.query_for_name(query)
-        elif type_ == 'date':
-            ret = self.query_for_date(query)
-
-        if ret.get('title', ''):
-            return ret
-        return {}
-
     def query_for_name(self, name):
         # TODO: Not (yet) possible without a cache/list
         properties = {}

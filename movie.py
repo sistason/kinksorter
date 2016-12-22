@@ -29,13 +29,13 @@ class Movie():
             kinkid = self.get_kinkid_through_image_recognition()
 
         if kinkid:
-            result = self.api.query('id', kinkid)
+            result = self.api.query_for_id(kinkid)
             if self.interactive_confirm(result):
                 self.properties.update(result)
         else:
             t_ = re.search(r"\d{4}\W\d{1,2}\W\d{1,2}", self.base_name)
             likely_date = t_.group(0) if t_ else ''
-            self.properties = self.interactive_query(likely_date)
+            self.properties.update(self.interactive_query(likely_date))
 
     def get_kinkids(self, base_name):
         base_name = re.sub('|'.join(str(i)+'p' for i in self.UNLIKELY_NUMBERS['quality']),
@@ -60,19 +60,31 @@ class Movie():
         return []
 
     def interactive_query(self, likely_date=''):
-        # TODO: query which movie
-        """
-        new_query = likely_date
-        do
-          result = query(new_query)
-          answer = input($formated_result okay? Y, n, new_query)
-          parse_answer
-        until not answer
-        return result
-        """
+        if not self.interactive:
+            return {}
 
-        if likely_date:
-            result = self.api.query('date', likely_date)
+        print('Unable to find anything to work automatically. Please help with input')
+        print('Movie in Question:', self.file_path, 'Likely date:', likely_date)
+
+        user_input = "don't stop yet :)"
+        while user_input:
+            user_input = input('Please input an ID, a data or a name of the movie in the format: '+\
+                               'ID: i<id>; Date: d<date>; Name: <name>; Abort: <empty string>').strip()
+            if user_input.startswith('i'):
+                id_ = int(user_input[1:]) if user_input[1:].isdigit() else 0
+                if not id_:
+                    print('"{}" was no number, please repeat!'.format(user_input[1:]))
+                    continue
+                result = self.api.query_for_id(id_)
+                if self.interactive_confirm(result):
+                    return result
+            elif user_input.startswith('d'):
+                date_ = user_input[1:]
+                #TODO
+            else:
+                name_ = user_input
+                #TODO
+
 
         return {}
 
@@ -84,6 +96,9 @@ class Movie():
 
     def interactive_choose_kinkid(self, likely_ids):
         # TODO: Qt
+        if not self.interactive:
+            return max(likely_ids)
+
         id_ = None
         while not id_ or not id_.isdigit():
             try:

@@ -19,7 +19,7 @@ class KinkAPIShould(unittest.TestCase):
         self.api = KinkAPI()
 
     def test_parsing(self):
-        properties = self.api.query('id', "7675")
+        properties = self.api.query_for_id(7675)
         assert_that(properties.get('title', ''),
                     equal_to('Holly Heart - Former collegiate athlete upside down, butt plugged, and made to cum!'))
         assert_that(properties.get('date', None),
