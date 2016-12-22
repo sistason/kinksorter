@@ -28,6 +28,8 @@ class Database():
     def update_all_movies(self):
         n = len(self.movies)
         for i, movie in enumerate(self.movies.values()):
+            if movie:
+                continue
             logging.info('Fetching details for movie "{}"... ({}/{})'.format(movie.base_name, i, n))
             movie.update_details()
 
