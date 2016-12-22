@@ -4,7 +4,7 @@ import unittest
 from hamcrest import *
 import tempfile
 
-from movie import Movie
+from movie import *
 
 
 class MovieShould(unittest.TestCase):
@@ -24,6 +24,12 @@ class MovieShould(unittest.TestCase):
         assert_that(self.movie.get_kinkids('1080'), contains(1080))
         assert_that(self.movie.get_kinkids('1080 720'), contains(1080, 720))
         assert_that(self.movie.get_kinkids('12345 1234'), contains(12345, 1234))
+
+    def test_logic(self):
+        self.movie.properties['id'] = 0
+        assert_that(movie_is_empty(self.movie), equal_to(True))
+        assert_that(movie_is_filled(self.movie), equal_to(False))
+        assert_that(self.movie == self.movie, equal_to(True))
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ class Database():
 
     def __init__(self, database_path, settings):
         self._path = database_path
-        self._api = settings.get('api')
+        self._settings = settings
 
     def add_movie(self, movie):
         if not self.check_movie_duplicates(movie):
@@ -23,6 +23,7 @@ class Database():
     def check_movie_duplicates(self, movie):
         for m_ in self.movies.values():
             if movie == m_:
+                logging.debug('Movie "{}" was already in the database'.format(movie))
                 return True
 
     def update_all_movies(self):
@@ -62,7 +63,7 @@ class Database():
 
                 # Date was not json serializable, format from timestamp
                 properties['date'] = datetime.date.fromtimestamp(int(properties.get('date',0)))
-                m_ = Movie(file_path, self._api, properties)
+                m_ = Movie(file_path, self._settings, properties)
                 _movies[file_path] = m_
 
         except Exception as e:
@@ -73,7 +74,7 @@ class Database():
     def write(self):
         _database = {}
         for m_ in self.movies.values():
-            _properties = m_.properties
+            _properties = m_.properties.copy()
             # Date is not json serializable, format to timestamp
             _properties['date'] = _properties['date'].strftime('%s') if 'date' in _properties else 0
             _database[m_.file_path] = _properties

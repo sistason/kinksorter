@@ -97,27 +97,49 @@ class Movie():
         # TODO: OpenCV Project :)
         return 0
 
-    def format_movie(self, properties):
-        return '{site} - {date} - {title} [{perfs}] ({id})'.format(
-            site=properties.get('site', '').replace(' ',''),
-            date=properties.get('date', ''),
-            title=properties.get('title', ''),
-            perfs=', '.join(properties.get('performers', '')),
-            id=properties.get('id', ''))
-
     def __eq__(self, other):
-        return (self.properties.get('title','') == other.properties.get('title','')
+        if movie_is_empty(self) and movie_is_empty(other):
+            return self.base_name == other.base_name
+        return (not (movie_is_empty(self) and movie_is_empty(other))
+                and self.properties.get('title','') == other.properties.get('title','')
                 and self.properties.get('performers', []) == other.properties.get('performers', [])
                 and self.properties.get('date', None) == other.properties.get('date', None)
                 and self.properties.get('site', '') == other.properties.get('site', '')
                 and self.properties.get('id',0) == other.properties.get('id',0))
 
     def __str__(self):
-        return self.format_movie(self.properties)
+        return format_movie(self)
 
     def __bool__(self):
-        return bool(self.properties.get('title',False)
-                and self.properties.get('performers', False)
-                and self.properties.get('site', False)
-                and 'date' in self.properties and int(self.properties['date'].strftime("%s")) > 0
-                and self.properties.get('id', 0) > 0)
+        return movie_is_filled(self)
+
+
+def format_movie(movie):
+    if movie_is_empty(movie):
+        return '<untagged> '+movie.base_name
+
+    ret = '{site} - {date} - {title} [{perfs}] ({id})'.format(
+        site=movie.properties.get('site', '').replace(' ', ''),
+        date=movie.properties.get('date', ''),
+        title=movie.properties.get('title', ''),
+        perfs=', '.join(movie.properties.get('performers', '')),
+        id=movie.properties.get('id', ''))
+    return ret
+
+
+def movie_is_filled(movie):
+    return bool(movie.properties.get('title', False)
+                and movie.properties.get('performers', False)
+                and movie.properties.get('site', False)
+                and 'date' in movie.properties and int(movie.properties['date'].strftime("%s")) > 0
+                and movie.properties.get('id', 0) > 0)
+
+
+def movie_is_empty(movie):
+    return bool(not movie.properties.get('title', True)
+                and not movie.properties.get('performers', True)
+                and not movie.properties.get('site', True)
+                and ('date' not in movie.properties or int(movie.properties['date'].strftime("%s")) <= 0)
+                and movie.properties.get('id', 0) == 0)
+
+
