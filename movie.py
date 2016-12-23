@@ -69,7 +69,7 @@ class Movie():
         user_input = "don't stop yet :)"
         while user_input:
             user_input = input('Please input an ID, a data or a name of the movie in the format: '+\
-                               'ID: i<id>; Date: d<date>; Name: <name>; Abort: <empty string>').strip()
+                               'ID: i<id>; Date: d<date YYYY-mm-dd>; Name: <name>; Abort: <empty string>').strip()
             if user_input.startswith('i'):
                 id_ = int(user_input[1:]) if user_input[1:].isdigit() else 0
                 if not id_:
@@ -79,12 +79,20 @@ class Movie():
                 if self.interactive_confirm(result):
                     return result
             elif user_input.startswith('d'):
-                date_ = user_input[1:]
-                #TODO
+                date_string = user_input[1:]
+                try:
+                    date_ = datetime.datetime.strptime(date_string, '%Y-%m-%d').date()
+                    print('Date interpreted as {}'.format(date_))
+                except (ValueError, AttributeError):
+                    print('Could not parse date "{}".'.format(date_string))
+                    continue
+
+                print('Sadly, no API is yet available to search for a date :(')
+                continue
             else:
                 name_ = user_input
-                #TODO
-
+                print('Sadly, no API is yet available to search for a name :(')
+                continue
 
         return {}
 

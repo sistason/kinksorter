@@ -71,6 +71,7 @@ class KinkAPI():
                     try:
                         date_ = info.p
                         date_ = date_.text.split(':')[-1].strip()
+                        # TODO: Check if kink.com gives out dates in local locale settings
                         date_ = datetime.datetime.strptime(date_, '%B %d, %Y').date()
                         properties['date'] = date_
                     except Exception as e:
