@@ -35,6 +35,9 @@ class Database():
             logging.info('Fetching details for movie "{}"... ({}/{})'.format(movie.base_name, i, n))
             movie.update_details()
 
+            if not i % 10:
+                self.write()
+
     def read(self):
         if not path.exists(self._path):
             logging.info("No database found at '{}', recreating!".format(self._path))

@@ -53,12 +53,15 @@ class KinkSorter():
                     self._scan_directory(full_path, recursion_depth)
 
     def sort(self, simulation=True):
-        storage_path, old_storage_name = self.storage_root_path.rsplit('/',1)
-        new_storage_path = os.path.join(storage_path, old_storage_name+'_kinksorted_0')
-        while os.path.exists(new_storage_path):
-            p_, cnt_ = new_storage_path.rsplit('_',1)
-            new_storage_path = p_ + '_' + str(int(cnt_)+1) if cnt_.isdigit() else p_ + '_0'
-        os.mkdir(new_storage_path)
+        storage_path, old_storage_name = self.storage_root_path.rsplit('/', 1)
+        new_storage_path = os.path.join(storage_path, old_storage_name + '_kinksorted')
+        if simulation:
+            new_storage_path += '_0'
+            while os.path.exists(new_storage_path):
+                p_, cnt_ = new_storage_path.rsplit('_',1)
+                new_storage_path = p_ + '_' + str(int(cnt_)+1) if cnt_.isdigit() else p_ + '_0'
+            os.mkdir(new_storage_path)
+
         for old_movie_path, movie in self.database.movies.items():
             site_ = movie.properties['site'] if 'site' in movie.properties and movie.properties['site'] else 'unsorted'
             new_site_path = os.path.join(new_storage_path, site_)
@@ -82,7 +85,6 @@ class KinkSorter():
             else:
                 shutil.move(old_movie_path, new_movie_path)
 
-        ...
 
 if __name__ == '__main__':
     import argparse
