@@ -4,7 +4,7 @@ import datetime
 
 
 class Movie():
-    UNLIKELY_NUMBERS = {'quality':[360,480,720,1080,1440,2160], 'years':range(2001, 2040)}
+    UNLIKELY_NUMBERS = {'quality': [360,480,720,1080,1440,2160], 'date': list(range(1999, 2030))+list(range(0, 32))}
     properties = {'title': '', 'performers': [], 'date': datetime.date(1970, 1, 1), 'site': '', 'id': 0}
 
     def __init__(self, file_path, settings, properties={}):
@@ -12,8 +12,7 @@ class Movie():
         self.properties.update(properties)
         self.api = settings.get('api', None)
         self.interactive = settings.get('interactive', True)
-        self.ALL_UNLIKELY_NUMBERS = []
-        [self.ALL_UNLIKELY_NUMBERS.extend(i) for i in self.UNLIKELY_NUMBERS.values()]
+        self._unlikely_numbers_re = re.compile('|'.join(str(i) + 'p' for i in self.UNLIKELY_NUMBERS['quality']))
 
         base_path, filename = file_path.rsplit('/',1)
         self.base_name, self.extension = filename.rsplit('.', 1) if '.' in filename else (filename, '')
@@ -39,26 +38,17 @@ class Movie():
             self.properties.update(self.interactive_query(likely_date))
 
     def get_kinkids(self, base_name):
-        base_name = re.sub('|'.join(str(i)+'p' for i in self.UNLIKELY_NUMBERS['quality']),
-                           "", base_name)
-        search_kinkid = list(map(int, re.findall(r"\d{3,6}", base_name)))
+        base_name = re.sub(self._unlikely_numbers_re, '', base_name)
+        search_kinkid = []
+
+        # FIXME: \d{2,6} scrambles numbers, (?:\D|^)(\d{2,6})(?:\D|$) has problems
+        for k in re.findall(r"\d+", base_name):
+            if 2 <= len(k) <= 6 and int(k) not in self.UNLIKELY_NUMBERS['date']:
+                search_kinkid.append(int(k))
 
         if len(search_kinkid) > 1:
-            likelies = [id for id in search_kinkid if id not in self.ALL_UNLIKELY_NUMBERS]
-            if len(likelies) == 1:
-                return likelies
-            elif len(likelies) > 1:
-                logging.info('Multiple likely kink_ids found, choose one')
-                return likelies
-            else:
-                logging.info('No likely kink_id found, choose from all numbers found')
-                return search_kinkid
-
-        elif len(search_kinkid) == 1:
-            if search_kinkid in self.ALL_UNLIKELY_NUMBERS:
-                logging.info('Unlikely')
-            return search_kinkid
-        return []
+            logging.info('Multiple kink_ids found, choose one')
+        return search_kinkid
 
     def interactive_query(self, likely_date=''):
         if not self.interactive:

@@ -19,11 +19,13 @@ class MovieShould(unittest.TestCase):
     def test_recognize_kinkid(self):
         assert_that(self.movie.get_kinkids('12345'), contains(12345))
         assert_that(self.movie.get_kinkids('1999-12345-2007'), contains(12345))
-        assert_that(self.movie.get_kinkids('2007'), contains(2007))
+        assert_that(self.movie.get_kinkids('2007'), equal_to([]))
         assert_that(self.movie.get_kinkids('1080p'), equal_to([]))
         assert_that(self.movie.get_kinkids('1080'), contains(1080))
         assert_that(self.movie.get_kinkids('1080 720'), contains(1080, 720))
         assert_that(self.movie.get_kinkids('12345 1234'), contains(12345, 1234))
+        assert_that(self.movie.get_kinkids('2016-01-12'), equal_to([]))
+        assert_that(self.movie.get_kinkids('123456789'), equal_to([]))
 
     def test_logic(self):
         self.movie.properties['id'] = 0
