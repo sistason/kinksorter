@@ -60,11 +60,12 @@ class KinkSorter():
             new_storage_path = p_ + '_' + str(int(cnt_)+1) if cnt_.isdigit() else p_ + '_0'
         os.mkdir(new_storage_path)
         for old_movie_path, movie in self.database.movies.items():
-            new_site_path = os.path.join(new_storage_path, movie.properties.get('site', 'unsorted'))
+            site_ = movie.properties['site'] if 'site' in movie.properties and movie.properties['site'] else 'unsorted'
+            new_site_path = os.path.join(new_storage_path, site_)
             if not os.path.exists(new_site_path):
                 os.mkdir(new_site_path)
 
-            new_movie_path = os.path.join(new_site_path, str(movie) + '.' + movie.extension)
+            new_movie_path = os.path.join(new_site_path, str(movie))
 
             if os.path.exists(new_movie_path):
                 # Duplicate! Keep the one with bigger file size ;)

@@ -1,22 +1,23 @@
 import re
 import logging
 import datetime
+import os
 
 
 class Movie():
     UNLIKELY_NUMBERS = {'quality': [360,480,720,1080,1440,2160], 'date': list(range(1999, 2030))+list(range(0, 32))}
-    properties = {'title': '', 'performers': [], 'date': datetime.date(1970, 1, 1), 'site': '', 'id': 0}
 
     def __init__(self, file_path, settings, properties={}):
         self.file_path = file_path
+        self.properties = {'title': '', 'performers': [], 'date': datetime.date(1970, 1, 1), 'site': '', 'id': 0}
         self.properties.update(properties)
-        self.api = settings.get('api', None)
+        self.settings = settings
         self.interactive = settings.get('interactive', True)
         self._unlikely_numbers_re = re.compile('|'.join(str(i) + 'p' for i in self.UNLIKELY_NUMBERS['quality']))
 
-        base_path, filename = file_path.rsplit('/',1)
-        self.base_name, self.extension = filename.rsplit('.', 1) if '.' in filename else (filename, '')
-        print(self.properties)
+        base_path, filename = os.path.split(file_path)
+        _, self.subdirname = os.path.split(base_path)
+        self.base_name, self.extension = os.path.splitext(filename)
 
     def update_details(self):
         kinkids = self.get_kinkids(self.base_name)
@@ -29,7 +30,7 @@ class Movie():
             kinkid = self.get_kinkid_through_image_recognition()
 
         if kinkid:
-            result = self.api.query_for_id(kinkid)
+            result = self.settings['api'].query_for_id(kinkid)
             if self.interactive_confirm(result):
                 self.properties.update(result)
         else:
@@ -51,7 +52,7 @@ class Movie():
         return search_kinkid
 
     def interactive_query(self, likely_date=''):
-        if not self.interactive:
+        if not self.settings['interactive']:
             return {}
 
         print('Unable to find anything to work automatically. Please help with input')
@@ -66,7 +67,7 @@ class Movie():
                 if not id_:
                     print('"{}" was no number, please repeat!'.format(user_input[1:]))
                     continue
-                result = self.api.query_for_id(id_)
+                result = self.settings['api'].query_for_id(id_)
                 if self.interactive_confirm(result):
                     return result
             elif user_input.startswith('d'):
@@ -80,9 +81,12 @@ class Movie():
 
                 print('Sadly, no API is yet available to search for a date :(')
                 continue
-            else:
+            elif user_input:
                 name_ = user_input
                 print('Sadly, no API is yet available to search for a name :(')
+                continue
+            else:
+                print('Leaving movie "{}" untagged.'.format(self.base_name))
                 continue
 
         return {}
@@ -90,12 +94,12 @@ class Movie():
     def interactive_confirm(self, result):
         print('\told: {}'.format(self.base_name))
         print('\tnew: {}'.format(format_properties(result)))
-        answer = input('Is this okay? Y, n?') if self.interactive else 'Y'
+        answer = input('Is this okay? Y, n?') if self.settings['interactive'] else 'Y'
         return True if not answer or answer.lower().startswith('y') else False
 
     def interactive_choose_kinkid(self, likely_ids):
         # TODO: Qt
-        if not self.interactive:
+        if not self.settings['interactive']:
             return max(likely_ids)
 
         id_ = None
@@ -130,17 +134,18 @@ class Movie():
 
 def format_movie(movie):
     if movie_is_empty(movie):
-        return '<untagged> '+movie.base_name
+        return '<untagged> | {}_{}'.format(movie.subdirname, movie.base_name)
     ret = ''
     if not movie_is_filled(movie):
         ret = movie.base_name + ' <incomplete_tagged> | '
 
-    ret += '{site} - {date} - {title} [{perfs}] ({id})'.format(
+    ret += '{site} - {date} - {title} [{perfs}] ({id}){ext}'.format(
         site=movie.properties.get('site', '').replace(' ', ''),
         date=movie.properties.get('date', ''),
         title=movie.properties.get('title', ''),
         perfs=', '.join(movie.properties.get('performers', '')),
-        id=movie.properties.get('id', ''))
+        id=movie.properties.get('id', ''),
+        ext=movie.extension)
     return ret
 
 
@@ -148,6 +153,8 @@ class Fake:
     def __init__(self, p,b=''):
         self.properties=p
         self.base_name = b
+        self.subdirname = 'fake'
+        self.extension = ''
 
 
 def format_properties(properties):

@@ -22,6 +22,23 @@ class KinkAPI():
         _cookies['viewing-preferences']='straight,gay'
         self._cookies = _cookies
 
+    def make_request_get(self, url, data=None):
+        if data is None:
+            data = {}
+        ret = ''
+        retries = 3
+        while not ret and retries > 0:
+            try:
+                r_ = requests.get(url, data=data, cookies = self._cookies, headers = self._headers, timeout = 2)
+                ret = r_.text
+            except requests.Timeout:
+                retries -= 1
+            except Exception as e:
+                logging.debug('Caught Exception "{}" while making a get-request to "{}"'.format(e, url))
+                break
+        return ret
+
+
     def query_for_name(self, name):
         # TODO: Not (yet) possible without a cache/list
         properties = {}
@@ -42,9 +59,9 @@ class KinkAPI():
         properties = {"id":kink_id}
         if not self._cookies:
             self.set_kink_cookies()
-        ret = requests.get("http://kink.com/shoot/{}".format(kink_id), cookies=self._cookies, headers=self._headers)
-        if ret:
-            _bs = bs4.BeautifulSoup(ret.text, "html5lib")
+        content = self.make_request_get("http://kink.com/shoot/{}".format(kink_id))
+        if content:
+            _bs = bs4.BeautifulSoup(content, "html5lib")
             if _bs.title:
                 try:
                     # Get link of the site from a.href
