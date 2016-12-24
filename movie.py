@@ -4,7 +4,7 @@ import datetime
 
 
 class Movie():
-    UNLIKELY_NUMBERS = {'quality':[360,480,720,1080,1440,2160], 'years':range(1950,2050)}
+    UNLIKELY_NUMBERS = {'quality':[360,480,720,1080,1440,2160], 'years':range(2001, 2040)}
     properties = {'title': '', 'performers': [], 'date': datetime.date(1970, 1, 1), 'site': '', 'id': 0}
 
     def __init__(self, file_path, settings, properties={}):
@@ -17,6 +17,7 @@ class Movie():
 
         base_path, filename = file_path.rsplit('/',1)
         self.base_name, self.extension = filename.rsplit('.', 1) if '.' in filename else (filename, '')
+        print(self.properties)
 
     def update_details(self):
         kinkids = self.get_kinkids(self.base_name)
@@ -68,8 +69,8 @@ class Movie():
 
         user_input = "don't stop yet :)"
         while user_input:
-            user_input = input('Please input an ID, a data or a name of the movie in the format: '+\
-                               'ID: i<id>; Date: d<date YYYY-mm-dd>; Name: <name>; Abort: <empty string>').strip()
+            user_input = input('Please input an ID, a data or a name of the movie in the format:\n' +
+                               '  ID: i<id>; Date: d<date YYYY-mm-dd>; Name: <name>; Abort: <empty string>\n   ').strip()
             if user_input.startswith('i'):
                 id_ = int(user_input[1:]) if user_input[1:].isdigit() else 0
                 if not id_:
@@ -98,7 +99,7 @@ class Movie():
 
     def interactive_confirm(self, result):
         print('\told: {}'.format(self.base_name))
-        print('\tnew: {}'.format(self.format_movie(result)))
+        print('\tnew: {}'.format(format_properties(result)))
         answer = input('Is this okay? Y, n?') if self.interactive else 'Y'
         return True if not answer or answer.lower().startswith('y') else False
 
@@ -151,6 +152,16 @@ def format_movie(movie):
         perfs=', '.join(movie.properties.get('performers', '')),
         id=movie.properties.get('id', ''))
     return ret
+
+
+class Fake:
+    def __init__(self, p,b=''):
+        self.properties=p
+        self.base_name = b
+
+
+def format_properties(properties):
+    return format_movie(Fake(properties))
 
 
 def movie_is_filled(movie):

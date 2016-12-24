@@ -10,7 +10,6 @@ class KinkAPI():
     _headers = {}
 
     def __init__(self):
-        self.set_kink_cookies()
         self.set_kink_headers()
 
     def set_kink_headers(self):
@@ -26,17 +25,23 @@ class KinkAPI():
     def query_for_name(self, name):
         # TODO: Not (yet) possible without a cache/list
         properties = {}
+        if not self._cookies:
+            self.set_kink_cookies()
         ...
         return properties
 
     def query_for_date(self, date):
         # TODO: Not (yet) possible without a cache/list
         properties = {}
+        if not self._cookies:
+            self.set_kink_cookies()
         ...
         return properties
 
     def query_for_id(self, kink_id):
         properties = {"id":kink_id}
+        if not self._cookies:
+            self.set_kink_cookies()
         ret = requests.get("http://kink.com/shoot/{}".format(kink_id), cookies=self._cookies, headers=self._headers)
         if ret:
             _bs = bs4.BeautifulSoup(ret.text, "html5lib")
@@ -56,7 +61,7 @@ class KinkAPI():
                 if info:
                     try:
                         title_ = info.find(attrs={'class', 'shoot-title'})
-                        title_ = title_.renderContents().decode().replace('<br/>', ' -')
+                        title_ = title_.renderContents().decode().replace('<br/>', ' - ').replace('  ',' ')
                         properties['title'] = title_
                     except Exception as e:
                         logging.warning('Could not parse title, exception was: {}'.format(e))

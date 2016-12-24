@@ -32,6 +32,7 @@ class KinkSorter():
         logging.info('{} movies found, {} new ones'.format(new_db_size_, new_db_size_-old_db_size_))
 
         self.database.update_all_movies()
+        self.database.write()
 
     def _scan_directory(self, dir_, recursion_depth):
         recursion_depth -= 1
@@ -73,6 +74,7 @@ class KinkSorter():
                     logging.debug('"{}" was duplicate of "{}", but was smaller and is therefore skipped'.format(
                         movie, new_movie_path))
                     continue
+                os.remove(new_movie_path)
 
             if simulation:
                 os.symlink(old_movie_path, new_movie_path)
@@ -96,7 +98,7 @@ if __name__ == '__main__':
                            help='Set the root path of the storage')
     argparser.add_argument('-t', '--tested', type=bool, default=False,
                            help="Sort/rename movies only by simulating it with symlinks in ./_test_kinksorter/")
-    argparser.add_argument('-i', '--interactive', type=bool, default=False,
+    argparser.add_argument('-i', '--interactive', action="store_true",
                            help="Sort/rename movies only by simulating it with symlinks in ./_test_kinksorter/")
 
     args = argparser.parse_args()
