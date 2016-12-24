@@ -32,7 +32,7 @@ class Database():
         for i, movie in enumerate(self.movies.values()):
             if movie:
                 continue
-            logging.info('Fetching details for movie "{}"... ({}/{})'.format(movie.base_name, i, n))
+            logging.info('Fetching details for movie "{}"... ({}/{})'.format(movie.base_name, i+1, n))
             movie.update_details()
 
             if not i % 10:
@@ -62,9 +62,6 @@ class Database():
 
             _movies = OrderedDict()
             for file_path, properties in _decoded.items():
-                if not (path.exists(file_path) and access(file_path, R_OK)):
-                    continue
-
                 # Date was not json serializable, format from timestamp
                 properties['date'] = datetime.date.fromtimestamp(int(properties.get('date',0)))
                 m_ = Movie(file_path, self._settings, properties)

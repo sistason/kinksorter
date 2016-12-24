@@ -92,7 +92,7 @@ class Movie():
         return {}
 
     def interactive_confirm(self, result):
-        print('\told: {}'.format(self.base_name))
+        print('\told: {}{}'.format(self.base_name, self.extension))
         print('\tnew: {}'.format(format_properties(result)))
         answer = input('Is this okay? Y, n?') if self.settings['interactive'] else 'Y'
         return True if not answer or answer.lower().startswith('y') else False
@@ -134,7 +134,7 @@ class Movie():
 
 def format_movie(movie):
     if movie_is_empty(movie):
-        return '<untagged> | {}_{}'.format(movie.subdirname, movie.base_name)
+        return '<untagged> | {}_{}{}'.format(movie.subdirname, movie.base_name, movie.extension)
     ret = ''
     if not movie_is_filled(movie):
         ret = movie.base_name + ' <incomplete_tagged> | '

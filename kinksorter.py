@@ -53,13 +53,14 @@ class KinkSorter():
                     self._scan_directory(full_path, recursion_depth)
 
     def sort(self, simulation=True):
-        storage_path, old_storage_name = self.storage_root_path.rsplit('/', 1)
+        storage_path, old_storage_name = os.path.split(self.storage_root_path)
         new_storage_path = os.path.join(storage_path, old_storage_name + '_kinksorted')
         if simulation:
             new_storage_path += '_0'
             while os.path.exists(new_storage_path):
                 p_, cnt_ = new_storage_path.rsplit('_',1)
                 new_storage_path = p_ + '_' + str(int(cnt_)+1) if cnt_.isdigit() else p_ + '_0'
+        if not os.path.exists(new_storage_path):
             os.mkdir(new_storage_path)
 
         for old_movie_path, movie in self.database.movies.items():
@@ -85,6 +86,21 @@ class KinkSorter():
             else:
                 shutil.move(old_movie_path, new_movie_path)
 
+    def revert(self):
+        storage_path, old_storage_name = os.path.split(self.storage_root_path)
+        sorted_path = os.path.join(storage_path, old_storage_name + '_kinksorted')
+
+        n = len(self.database.movies)
+        for i, (path_, movie) in enumerate(self.database.movies.items()):
+            if os.path.exists(path_):
+                continue
+            site_ = movie.properties['site'] if 'site' in movie.properties and movie.properties['site'] else 'unsorted'
+            sorted_site_path = os.path.join(sorted_path, site_)
+            sorted_movie_path = os.path.join(sorted_site_path, str(movie))
+            if os.path.exists(sorted_movie_path):
+                shutil.move(sorted_movie_path, path_)
+
+            logging.info('Reverted movie "{}"... ({}/{})'.format(str(movie), i + 1, n))
 
 if __name__ == '__main__':
     import argparse
@@ -99,10 +115,12 @@ if __name__ == '__main__':
 
     argparser.add_argument('storage_root_path', type=argcheck_dir,
                            help='Set the root path of the storage')
-    argparser.add_argument('-t', '--tested', type=bool, default=False,
-                           help="Sort/rename movies only by simulating it with symlinks in ./_test_kinksorter/")
+    argparser.add_argument('-t', '--tested', action="store_true",
+                           help="Move movies instead of symlinking them")
     argparser.add_argument('-i', '--interactive', action="store_true",
-                           help="Sort/rename movies only by simulating it with symlinks in ./_test_kinksorter/")
+                           help="Confirm each movie and query fails manually")
+    argparser.add_argument('-r', '--revert', action="store_true",
+                           help="Revert the sorted movies back to their original state when first run (implies -t)")
 
     args = argparser.parse_args()
 
@@ -110,5 +128,8 @@ if __name__ == '__main__':
 
     logging.basicConfig(format='%(levelname)s:%(funcName)s:%(message)s',
                         level=logging.INFO)
-    m.update_database()
-    m.sort(simulation=not args.tested)
+    if args.revert:
+        m.revert()
+    else:
+        m.update_database()
+        m.sort(simulation=not args.tested)
