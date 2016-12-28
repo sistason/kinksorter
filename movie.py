@@ -2,13 +2,17 @@ import re
 import logging
 import datetime
 import os
+import cv2
+import numpy as np
 
 
 class Movie():
     UNLIKELY_NUMBERS = {'quality': [360,480,720,1080,1440,2160], 'date': list(range(1999, 2030))+list(range(0, 32))}
 
-    def __init__(self, file_path, settings, properties={}):
+    def __init__(self, file_path, settings, properties=None):
         self.file_path = file_path
+        if properties is None:
+            properties = {}
         self.properties = {'title': '', 'performers': [], 'date': datetime.date(1970, 1, 1), 'site': '', 'id': 0}
         self.properties.update(properties)
         self.settings = settings
@@ -20,17 +24,17 @@ class Movie():
         self.base_name, self.extension = os.path.splitext(filename)
 
     def update_details(self):
-        kinkids = self.get_kinkids(self.base_name)
-        if kinkids:
-            if len(kinkids) > 1:
-                kinkid = self.interactive_choose_kinkid(kinkids)
+        shootids = self.get_shootids(self.base_name)
+        if shootids:
+            if len(shootids) > 1:
+                shootid = self.interactive_choose_shootid(shootids)
             else:
-                kinkid = kinkids[0]
+                shootid = shootids[0]
         else:
-            kinkid = self.get_kinkid_through_image_recognition()
+            shootid = self.get_shootid_through_image_recognition()
 
-        if kinkid:
-            result = self.settings['api'].query_for_id(kinkid)
+        if shootid:
+            result = self.settings['api'].query_for_id(shootid)
             if self.interactive_confirm(result):
                 self.properties.update(result)
         else:
@@ -38,18 +42,18 @@ class Movie():
             likely_date = t_.group(0) if t_ else ''
             self.properties.update(self.interactive_query(likely_date))
 
-    def get_kinkids(self, base_name):
+    def get_shootids(self, base_name):
         base_name = re.sub(self._unlikely_numbers_re, '', base_name)
-        search_kinkid = []
+        search_shootid = []
 
         # FIXME: \d{2,6} scrambles numbers, (?:\D|^)(\d{2,6})(?:\D|$) has problems
         for k in re.findall(r"\d+", base_name):
             if 2 <= len(k) <= 6 and int(k) not in self.UNLIKELY_NUMBERS['date']:
-                search_kinkid.append(int(k))
+                search_shootid.append(int(k))
 
-        if len(search_kinkid) > 1:
-            logging.info('Multiple kink_ids found, choose one')
-        return search_kinkid
+        if len(search_shootid) > 1:
+            logging.info('Multiple Shoot IDs found, choose one')
+        return search_shootid
 
     def interactive_query(self, likely_date=''):
         if not self.settings['interactive']:
@@ -97,7 +101,7 @@ class Movie():
         answer = input('Is this okay? Y, n?') if self.settings['interactive'] else 'Y'
         return True if not answer or answer.lower().startswith('y') else False
 
-    def interactive_choose_kinkid(self, likely_ids):
+    def interactive_choose_shootid(self, likely_ids):
         # TODO: Qt
         if not self.settings['interactive']:
             return max(likely_ids)
@@ -105,15 +109,56 @@ class Movie():
         id_ = None
         while not id_ or not id_.isdigit():
             try:
-                id_ = input('Choose the Kink-ID of file "{}". Likely are:\n\t{}'.format(
+                id_ = input('Choose the Shoot ID of file "{}". Likely are:\n\t{}'.format(
                                         self.file_path, '\n\t'.join(map(str, likely_ids))))
             except KeyboardInterrupt:
                 return 0
         return int(id_)
 
-    def get_kinkid_through_image_recognition(self):
+    def get_shootid_through_image_recognition(self):
         # TODO: OpenCV Project :)
+        capture = cv2.VideoCapture(self.file_path)
+        frame_count = capture.get(cv2.CAP_PROP_FRAME_COUNT)
+        if not frame_count:
+            return 0
+        if 'shootid_template' not in self.settings.keys():
+            return 0
+        fps = capture.get(cv2.CAP_PROP_FPS)
+        print(frame_count, fps)
+        ret = capture.set(cv2.CAP_PROP_POS_FRAMES, frame_count - int(4*fps))
+        frame_list = []
+        while ret:
+            ret, frame_ = capture.read()
+            if ret:
+                frame_list.append((frame_.max(), frame_))
+
+        frame_list.sort(key=lambda f: f[0])
+        fitting_frame = frame_list[-1][1]
+        height, width, c = fitting_frame.shape
+        print(fitting_frame.shape)
+        cropped_frame = fitting_frame[int(1.9/3*height):int(2.2/3*height), int(1/4*width):int(3/4*width)]
+        b, g, r = cropped_frame[:,:,0].mean(), cropped_frame[:,:,1].mean(), cropped_frame[:,:,2].mean()
+        if not (r > 10 and b < 2 and g < 2):
+            return 0
+
+        red_frame = cropped_frame[:, :, 2]
+
+        template = self.settings.get('shootid_template', None)
+        if template.dtype != np.dtype('uint8'):
+            template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+        result = cv2.matchTemplate(red_frame, template, cv2.TM_CCOEFF_NORMED)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+        template_height, template_width = template.shape
+        shootid_crop = red_frame[max_loc[0]+template_width:, max_loc[1] + template_height:]
+
+        self.debug_frame(shootid_crop)
+
         return 0
+
+    def debug_frame(self, frame):
+        cv2.imwrite('/tmp/test.jpeg', frame)
+        os.system('eog /tmp/test.jpeg')
 
     def __eq__(self, other):
         if movie_is_empty(self) and movie_is_empty(other):

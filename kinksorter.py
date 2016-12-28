@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import logging
+from cv2 import imread
 
 from database import Database
 from movie import Movie
@@ -13,15 +14,21 @@ from api import KinkAPI
 class KinkSorter():
     settings = {}
 
-    def __init__(self, storage_root_path, interactive):
+    def __init__(self, storage_root_path, settings):
         logging.basicConfig(format='%(message)s', level=logging.INFO)
 
         self.storage_root_path = storage_root_path
-        self.settings['interactive'] = interactive
+        self.settings['interactive'] = settings.get('interactive', False)
         self.settings['api'] = KinkAPI()
+        self.settings['shootid_template'] = self.get_shootid_template(settings.get('shootid_template', None))
         database_path = path.join(self.storage_root_path, '.kinksorter_db')
         self.database = Database(database_path, self.settings)
         self.database.read()
+
+    def get_shootid_template(self, template):
+        if not template or not os.path.exists(template):
+            return None
+        return imread(template, 0)
 
     def update_database(self):
         old_db_size_ = len(self.database.movies)
@@ -121,10 +128,12 @@ if __name__ == '__main__':
                            help="Confirm each movie and query fails manually")
     argparser.add_argument('-r', '--revert', action="store_true",
                            help="Revert the sorted movies back to their original state when first run (implies -t)")
+    argparser.add_argument('-s', '--shootid_template', type=argcheck_dir,
+                           help="Set the template-image for finding the Shoot ID")
 
     args = argparser.parse_args()
 
-    m = KinkSorter(args.storage_root_path, args.interactive)
+    m = KinkSorter(args.storage_root_path, vars(args))
 
     logging.basicConfig(format='%(levelname)s:%(funcName)s:%(message)s',
                         level=logging.INFO)
