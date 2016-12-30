@@ -20,7 +20,7 @@ class KinkSorter():
 
         self.storage_root_path = storage_root_path
         self.settings['interactive'] = settings.get('interactive', False)
-        self.settings['api'] = KinkAPI()
+        self.settings['apis'] = [KinkAPI()]
         self.settings['shootid_template'] = self.get_shootid_template(settings.get('shootid_template', None))
         database_path = path.join(self.storage_root_path, '.kinksorter_db')
         self.database = Database(database_path, self.settings)

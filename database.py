@@ -1,12 +1,13 @@
 import logging
 import json
 import tqdm
+import datetime
 
 from collections import OrderedDict
 from os import path, access, W_OK, R_OK
 
-from api import *
 from movie import Movie
+
 
 class TqdmLoggingHandler (logging.Handler):
     def __init__ (self, level = logging.NOTSET):

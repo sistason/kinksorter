@@ -13,17 +13,23 @@ class Movie():
 
     def __init__(self, file_path, settings, properties=None):
         self.file_path = file_path
+        self._unlikely_numbers_re = re.compile('|'.join(str(i) + 'p' for i in self.UNLIKELY_NUMBERS['quality']))
+        self.settings = settings
+
+        base_path_, filename_ = os.path.split(file_path)
+        _, self.subdirname = os.path.split(base_path_)
+        self.base_name, self.extension = os.path.splitext(filename_)
+
         if properties is None:
             properties = {}
         self.properties = {'title': '', 'performers': [], 'date': datetime.date(1970, 1, 1), 'site': '', 'id': 0}
         self.properties.update(properties)
-        self.settings = settings
-        self.interactive = settings.get('interactive', True)
-        self._unlikely_numbers_re = re.compile('|'.join(str(i) + 'p' for i in self.UNLIKELY_NUMBERS['quality']))
 
-        base_path, filename = os.path.split(file_path)
-        _, self.subdirname = os.path.split(base_path)
-        self.base_name, self.extension = os.path.splitext(filename)
+        self.api = self.get_correct_api()
+
+    def get_correct_api(self):
+
+        return None
 
     def update_details(self):
         shootids = self.get_shootids(self.base_name)
@@ -36,7 +42,7 @@ class Movie():
             shootid = self.get_shootid_through_image_recognition()
 
         if shootid:
-            result = self.settings['api'].query_for_id(shootid)
+            result = self.api.query_for_id(shootid)
             if self.interactive_confirm(result):
                 self.properties.update(result)
         else:
@@ -73,7 +79,7 @@ class Movie():
                 if not id_:
                     print('"{}" was no number, please repeat!'.format(user_input[1:]))
                     continue
-                result = self.settings['api'].query_for_id(id_)
+                result = self.api.query_for_id(id_)
                 if self.interactive_confirm(result):
                     return result
             elif user_input.startswith('d'):
@@ -104,7 +110,6 @@ class Movie():
         return True if not answer or answer.lower().startswith('y') else False
 
     def interactive_choose_shootid(self, likely_ids):
-        # TODO: Qt
         if not self.settings['interactive']:
             return max(likely_ids)
 
@@ -118,7 +123,6 @@ class Movie():
         return int(id_)
 
     def get_shootid_through_image_recognition(self):
-        # TODO: OpenCV Project :)
         capture = cv2.VideoCapture(self.file_path)
         frame_count = capture.get(cv2.CAP_PROP_FRAME_COUNT)
         if not frame_count:
@@ -159,6 +163,7 @@ class Movie():
         return shootid
 
     def recognize_shootid(self, shootid_img):
+        # FIXME: filepath-independence by piping the image?
         tmp_image = '/tmp/kinksorter_shootid.jpeg'
         cv2.imwrite(tmp_image, shootid_img)
         output = subprocess.run(['tesseract', tmp_image, 'stdout', 'digits'], stdout=subprocess.PIPE)

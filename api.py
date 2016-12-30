@@ -6,6 +6,7 @@ import datetime
 
 class KinkAPI():
     _cookies = None
+    _site_responsibilites = None
     _headers = {}
 
     def __init__(self):
@@ -25,6 +26,8 @@ class KinkAPI():
     def make_request_get(self, url, data=None):
         if data is None:
             data = {}
+        if not self._cookies:
+            self.set_kink_cookies()
         ret = ''
         retries = 3
         while not ret and retries > 0:
@@ -38,27 +41,42 @@ class KinkAPI():
                 break
         return ret
 
+    def get_site_responsibilities(self):
+        if self._site_responsibilites is not None:
+            return self._site_responsibilites
+
+        channel_names = []
+        content = self.make_request_get("http://kink.com/channels")
+        soup = bs4.BeautifulSoup(content, 'html5lib')
+        channels = soup.body.find('div', id='footer')
+        if channels:
+            site_lists = channels.find_all('div', attrs={'class': 'site-list'})
+            for site_list_ in site_lists:
+                for site_ in site_list_.find_all('a'):
+                    if site_.attrs.get('href','').startswith('/channel/'):
+                        channel_names.append(site_.text.strip())
+
+            for channel_name in list(channel_names):
+                channel_names.append(''.join([c[0] for c in channel_name.split()]))
+
+            self._site_responsibilites = channel_names
+
+        return channel_names
 
     def query_for_name(self, name):
         # TODO: Not (yet) possible without a cache/list
         properties = {}
-        if not self._cookies:
-            self.set_kink_cookies()
         ...
         return properties
 
     def query_for_date(self, date):
         # TODO: Not (yet) possible without a cache/list
         properties = {}
-        if not self._cookies:
-            self.set_kink_cookies()
         ...
         return properties
 
     def query_for_id(self, kink_id):
         properties = {"id":kink_id}
-        if not self._cookies:
-            self.set_kink_cookies()
         content = self.make_request_get("http://kink.com/shoot/{}".format(kink_id))
         if content:
             _bs = bs4.BeautifulSoup(content, "html5lib")
