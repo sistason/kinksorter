@@ -4,12 +4,12 @@ import re
 import logging
 import datetime
 
-
 class KinkAPI():
     _cookies = None
     _headers = {}
 
     def __init__(self):
+        logging.getLogger("requests").setLevel(logging.WARNING)
         self.set_kink_headers()
 
     def set_kink_headers(self):
@@ -62,7 +62,7 @@ class KinkAPI():
         content = self.make_request_get("http://kink.com/shoot/{}".format(kink_id))
         if content:
             _bs = bs4.BeautifulSoup(content, "html5lib")
-            if _bs.title:
+            if _bs.title.text:
                 try:
                     # Get link of the site from a.href
                     site_logo_ = _bs.body.find('div', attrs={"class":"column shoot-logo"}) # current-page
@@ -73,6 +73,7 @@ class KinkAPI():
                     properties['site'] = site_name_
                 except Exception as e:
                     logging.warning('Could not parse site, exception was: {}'.format(e))
+                    logging.warning(_bs.body)
 
                 info = _bs.body.find('div', attrs={'class':'shoot-info'})
                 if info:
