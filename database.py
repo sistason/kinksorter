@@ -45,16 +45,15 @@ class Database():
     def update_all_movies(self):
         log = logging.getLogger(__name__)
         log.addHandler(TqdmLoggingHandler())
-        n = len(self.movies)
-        for movie in tqdm.tqdm(self.movies.values()):
+        for i, movie in enumerate(tqdm.tqdm(self.movies.values())):
             if movie:
                 continue
 
             logging.info('Fetching details for movie "{}"...'.format(movie.base_name))
             movie.update_details()
 
-#            if not pbar.value % 10:
-#                self.write()
+            if not i % 10:
+                self.write()
 
     def read(self):
         if not path.exists(self._path):
