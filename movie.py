@@ -4,6 +4,8 @@ import datetime
 import os
 import cv2
 import numpy as np
+import subprocess
+import tempfile
 
 
 class Movie():
@@ -96,8 +98,8 @@ class Movie():
         return {}
 
     def interactive_confirm(self, result):
-        print('\told: {}{}'.format(self.base_name, self.extension))
-        print('\tnew: {}'.format(format_properties(result)))
+        logging.info('\told: {}{}'.format(self.base_name, self.extension))
+        logging.info('\tnew: {}'.format(format_properties(result)))
         answer = input('Is this okay? Y, n?') if self.settings['interactive'] else 'Y'
         return True if not answer or answer.lower().startswith('y') else False
 
@@ -121,10 +123,10 @@ class Movie():
         frame_count = capture.get(cv2.CAP_PROP_FRAME_COUNT)
         if not frame_count:
             return 0
-        if 'shootid_template' not in self.settings.keys():
+        template = self.settings.get('shootid_template', None)
+        if template is None:
             return 0
         fps = capture.get(cv2.CAP_PROP_FPS)
-        print(frame_count, fps)
         ret = capture.set(cv2.CAP_PROP_POS_FRAMES, frame_count - int(4*fps))
         frame_list = []
         while ret:
@@ -132,33 +134,41 @@ class Movie():
             if ret:
                 frame_list.append((frame_.max(), frame_))
 
-        frame_list.sort(key=lambda f: f[0])
-        fitting_frame = frame_list[-1][1]
-        height, width, c = fitting_frame.shape
-        print(fitting_frame.shape)
-        cropped_frame = fitting_frame[int(1.9/3*height):int(2.2/3*height), int(1/4*width):int(3/4*width)]
-        b, g, r = cropped_frame[:,:,0].mean(), cropped_frame[:,:,1].mean(), cropped_frame[:,:,2].mean()
-        if not (r > 10 and b < 2 and g < 2):
+        if not frame_list:
             return 0
+        frame_list.sort(key=lambda f: f[0])
+        best_frame = frame_list[-1][1]
 
-        red_frame = cropped_frame[:, :, 2]
+        red_frame = best_frame[:, :, 2]
 
-        template = self.settings.get('shootid_template', None)
         if template.dtype != np.dtype('uint8'):
             template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
         result = cv2.matchTemplate(red_frame, template, cv2.TM_CCOEFF_NORMED)
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+        _, max_val, _, max_loc = cv2.minMaxLoc(result)
+        if max_val < 0.7:
+            return 0
 
         template_height, template_width = template.shape
-        shootid_crop = red_frame[max_loc[0]+template_width:, max_loc[1] + template_height:]
+        shootid_crop = red_frame[max_loc[1]:max_loc[1]+template_height, max_loc[0]+template_width:]
 
-        self.debug_frame(shootid_crop)
+        shootid = self.recognize_shootid(shootid_crop)
+        if not shootid:
+            pass
+            #self.debug_frame(shootid_crop)
 
+        return shootid
+
+    def recognize_shootid(self, shootid_img):
+        tmp_image = '/tmp/kinksorter_shootid.jpeg'
+        cv2.imwrite(tmp_image, shootid_img)
+        output = subprocess.run(['tesseract', tmp_image, 'stdout', 'digits'], stdout=subprocess.PIPE)
+        if output.stdout is not None and output.stdout.strip().isdigit():
+            return int(output.stdout)
         return 0
 
     def debug_frame(self, frame):
         cv2.imwrite('/tmp/test.jpeg', frame)
-        os.system('eog /tmp/test.jpeg')
+        os.system('eog /tmp/test.jpeg 2>/dev/null')
 
     def __eq__(self, other):
         if movie_is_empty(self) and movie_is_empty(other):

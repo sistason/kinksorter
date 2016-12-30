@@ -1,11 +1,26 @@
 import logging
 import json
+import tqdm
 
 from collections import OrderedDict
 from os import path, access, W_OK, R_OK
 
 from api import *
 from movie import Movie
+
+class TqdmLoggingHandler (logging.Handler):
+    def __init__ (self, level = logging.NOTSET):
+        super (self.__class__, self).__init__ (level)
+
+    def emit (self, record):
+        try:
+            msg = self.format (record)
+            tqdm.tqdm.write (msg)
+            self.flush ()
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except:
+            self.handleError(record)
 
 
 class Database():
@@ -28,15 +43,18 @@ class Database():
                 return True
 
     def update_all_movies(self):
+        log = logging.getLogger(__name__)
+        log.addHandler(TqdmLoggingHandler())
         n = len(self.movies)
-        for i, movie in enumerate(self.movies.values()):
+        for movie in tqdm.tqdm(self.movies.values()):
             if movie:
                 continue
-            logging.info('Fetching details for movie "{}"... ({}/{})'.format(movie.base_name, i+1, n))
+
+            logging.info('Fetching details for movie "{}"...'.format(movie.base_name))
             movie.update_details()
 
-            if not i % 10:
-                self.write()
+#            if not pbar.value % 10:
+#                self.write()
 
     def read(self):
         if not path.exists(self._path):

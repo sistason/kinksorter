@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import logging
+import tqdm
 from cv2 import imread
 
 from database import Database
@@ -37,9 +38,14 @@ class KinkSorter():
 
         new_db_size_ = len(self.database.movies)
         logging.info('{} movies found, {} new ones'.format(new_db_size_, new_db_size_-old_db_size_))
+        try:
+            self.database.update_all_movies()
+        except KeyboardInterrupt as e:
+            logging.info('Saving Database and exiting...')
+            self.database.write()
 
-        self.database.update_all_movies()
         self.database.write()
+
 
     def _scan_directory(self, dir_, recursion_depth):
         recursion_depth -= 1
@@ -71,6 +77,8 @@ class KinkSorter():
             os.mkdir(new_storage_path)
 
         for old_movie_path, movie in self.database.movies.items():
+            if not os.path.exists(old_movie_path) or os.access(old_movie_path, os.R_OK):
+                continue
             site_ = movie.properties['site'] if 'site' in movie.properties and movie.properties['site'] else 'unsorted'
             new_site_path = os.path.join(new_storage_path, site_)
             if not os.path.exists(new_site_path):
@@ -128,7 +136,7 @@ if __name__ == '__main__':
                            help="Confirm each movie and query fails manually")
     argparser.add_argument('-r', '--revert', action="store_true",
                            help="Revert the sorted movies back to their original state when first run (implies -t)")
-    argparser.add_argument('-s', '--shootid_template', type=argcheck_dir,
+    argparser.add_argument('-s', '--shootid_template', default='templates/shootid.jpeg',
                            help="Set the template-image for finding the Shoot ID")
 
     args = argparser.parse_args()
@@ -137,6 +145,7 @@ if __name__ == '__main__':
 
     logging.basicConfig(format='%(levelname)s:%(funcName)s:%(message)s',
                         level=logging.INFO)
+    logging.basicConfig()
     if args.revert:
         m.revert()
     else:
