@@ -10,11 +10,12 @@ import tempfile
 
 class Movie():
     UNLIKELY_NUMBERS = {'quality': [360,480,720,1080,1440,2160], 'date': list(range(1999, 2030))+list(range(0, 32))}
+    settings = None
 
-    def __init__(self, file_path, settings, properties=None):
+    def __init__(self, file_path, api, properties=None):
         self.file_path = file_path
         self._unlikely_numbers_re = re.compile('|'.join(str(i) + 'p' for i in self.UNLIKELY_NUMBERS['quality']))
-        self.settings = settings
+        self.api = api
 
         base_path_, filename_ = os.path.split(file_path)
         _, self.subdirname = os.path.split(base_path_)
@@ -25,13 +26,12 @@ class Movie():
         self.properties = {'title': '', 'performers': [], 'date': datetime.date(1970, 1, 1), 'site': '', 'id': 0}
         self.properties.update(properties)
 
-        self.api = self.get_correct_api()
-
-    def get_correct_api(self):
-
-        return None
+        if self.settings is None:
+            logging.warning('Settings were not set by calling class! This will break!')
 
     def update_details(self):
+        if self.api is None:
+            return
         shootids = self.get_shootids(self.base_name)
         if shootids:
             if len(shootids) > 1:
@@ -64,7 +64,7 @@ class Movie():
         return search_shootid
 
     def interactive_query(self, likely_date=''):
-        if not self.settings['interactive']:
+        if not self.settings.interactive:
             return {}
 
         print('Unable to find anything to work automatically. Please help with input')
@@ -106,11 +106,11 @@ class Movie():
     def interactive_confirm(self, result):
         logging.info('\told: {}{}'.format(self.base_name, self.extension))
         logging.info('\tnew: {}'.format(format_properties(result)))
-        answer = input('Is this okay? Y, n?') if self.settings['interactive'] else 'Y'
+        answer = input('Is this okay? Y, n?') if self.settings.interactive else 'Y'
         return True if not answer or answer.lower().startswith('y') else False
 
     def interactive_choose_shootid(self, likely_ids):
-        if not self.settings['interactive']:
+        if not self.settings.interactive:
             return max(likely_ids)
 
         id_ = None
@@ -127,7 +127,7 @@ class Movie():
         frame_count = capture.get(cv2.CAP_PROP_FRAME_COUNT)
         if not frame_count:
             return 0
-        template = self.settings.get('shootid_template', None)
+        template = self.settings.shootid_template
         if template is None:
             return 0
         fps = capture.get(cv2.CAP_PROP_FPS)

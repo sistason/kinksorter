@@ -12,6 +12,23 @@ from movie import Movie
 from api import KinkAPI
 
 
+class Settings():
+    RECURSION_DEPTH = 5
+    interactive = False
+    shootid_template = None
+    apis = {}
+
+    def __init__(self, args):
+        self.interactive = args.get('interactive', False)
+        self._read_shootid_template(args.get('shootid_template', None))
+        self.apis = {KinkAPI.name: KinkAPI()}
+
+    def _read_shootid_template(self, template):
+        if not template or not os.path.exists(template):
+            return
+        self.shootid_template = imread(template, 0)
+
+
 class KinkSorter():
     settings = {}
 
@@ -19,21 +36,16 @@ class KinkSorter():
         logging.basicConfig(format='%(message)s', level=logging.INFO)
 
         self.storage_root_path = storage_root_path
-        self.settings['interactive'] = settings.get('interactive', False)
-        self.settings['apis'] = [KinkAPI()]
-        self.settings['shootid_template'] = self.get_shootid_template(settings.get('shootid_template', None))
+        self.settings = settings
+        Movie.settings = settings
+
         database_path = path.join(self.storage_root_path, '.kinksorter_db')
         self.database = Database(database_path, self.settings)
         self.database.read()
 
-    def get_shootid_template(self, template):
-        if not template or not os.path.exists(template):
-            return None
-        return imread(template, 0)
-
     def update_database(self):
         old_db_size_ = len(self.database.movies)
-        self._scan_directory(self.storage_root_path, 10)
+        self._scan_directory(self.storage_root_path, self.settings.RECURSION_DEPTH)
         self.database.write()
 
         new_db_size_ = len(self.database.movies)
@@ -46,7 +58,6 @@ class KinkSorter():
 
         self.database.write()
 
-
     def _scan_directory(self, dir_, recursion_depth):
         recursion_depth -= 1
         for entry in os.scandir(dir_):
@@ -57,13 +68,25 @@ class KinkSorter():
                     mime_type = subprocess.check_output(['file', '-b', '--mime-type', full_path])
                     if mime_type and mime_type.decode('utf-8').startswith('video/'):
                         logging.debug('\tAdding movie {}...'.format(entry.path))
-                        m_ = Movie(full_path, self.settings)
+                        m_ = Movie(full_path, api=self._current_site_api)
                         self.database.add_movie(m_)
             if entry.is_dir():
+                if recursion_depth == self.settings.RECURSION_DEPTH - 1:
+                    self._current_site_api = self._get_correct_api(entry.name)
+                    name_ = self._current_site_api.name if self._current_site_api else '<None>'
+                    logging.info('Scanning site-directory (API: {}) {}...'.format(name_, entry.path))
+
                 if recursion_depth > 0:
-                    if recursion_depth == 9:
-                        logging.info('Scanning directory {}...'.format(entry.path))
                     self._scan_directory(full_path, recursion_depth)
+
+    def _get_correct_api(self, dir_name):
+        search = dir_name.replace(' ', '').lower()
+        for name, api in self.settings.apis.items():
+            resps = api.get_site_responsibilities()
+            if search in resps:
+                return api
+
+        return None
 
     def sort(self, simulation=True):
         storage_path, old_storage_name = os.path.split(self.storage_root_path)
@@ -141,7 +164,8 @@ if __name__ == '__main__':
 
     args = argparser.parse_args()
 
-    m = KinkSorter(args.storage_root_path, vars(args))
+    settings = Settings(vars(args))
+    m = KinkSorter(args.storage_root_path, settings)
 
     logging.basicConfig(format='%(levelname)s:%(funcName)s:%(message)s',
                         level=logging.INFO)

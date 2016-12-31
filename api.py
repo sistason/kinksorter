@@ -4,10 +4,12 @@ import re
 import logging
 import datetime
 
+
 class KinkAPI():
     _cookies = None
-    _site_responsibilites = None
+    _site_capabilities = None
     _headers = {}
+    name = 'Kink.com'
 
     def __init__(self):
         logging.getLogger("requests").setLevel(logging.WARNING)
@@ -42,8 +44,8 @@ class KinkAPI():
         return ret
 
     def get_site_responsibilities(self):
-        if self._site_responsibilites is not None:
-            return self._site_responsibilites
+        if self._site_capabilities is not None:
+            return self._site_capabilities
 
         channel_names = []
         content = self.make_request_get("http://kink.com/channels")
@@ -54,13 +56,11 @@ class KinkAPI():
             for site_list_ in site_lists:
                 for site_ in site_list_.find_all('a'):
                     if site_.attrs.get('href','').startswith('/channel/'):
-                        channel_names.append(site_.text.strip())
+                        channel_ = site_.text.strip().lower()
+                        channel_names.append(channel_.replace(' ', ''))
+                        channel_names.append(''.join([c[0] for c in channel_.split()]))
 
-            for channel_name in list(channel_names):
-                channel_names.append(''.join([c[0] for c in channel_name.split()]))
-
-            self._site_responsibilites = channel_names
-
+            self._site_capabilities = channel_names
         return channel_names
 
     def query_for_name(self, name):
