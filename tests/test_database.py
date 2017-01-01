@@ -9,6 +9,7 @@ import datetime
 from database import Database
 from movie import Movie
 from api import KinkAPI
+from kinksorter import Settings
 
 
 class DatabaseShould(unittest.TestCase):
@@ -16,7 +17,7 @@ class DatabaseShould(unittest.TestCase):
     def setUp(self):
         self.temp_database_file = tempfile.NamedTemporaryFile()
         self.temp_movie_file = tempfile.NamedTemporaryFile(suffix="12345")
-        self.settings = {'api':KinkAPI(), 'interactive':False}
+        self.settings = Settings({'interactive': False})
         self.database = Database(self.temp_database_file.name, self.settings)
 
     def test_workflow(self):
@@ -24,7 +25,7 @@ class DatabaseShould(unittest.TestCase):
 
         properties_ = {'title': 'test', 'performers': ['Testy Mc. Test'],
                        'date': datetime.date(2007, 1, 1), 'site': 'Test Site', 'id': 1337}
-        m_ = Movie(self.temp_movie_file.name, self.settings, properties_)
+        m_ = Movie(self.temp_movie_file.name, None, properties_)
         self.database.add_movie(m_)
         assert_that(self.database.movies, equal_to({self.temp_movie_file.name: m_}))
 
