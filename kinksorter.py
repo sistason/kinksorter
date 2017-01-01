@@ -4,12 +4,13 @@ import os
 import shutil
 import subprocess
 import logging
-import tqdm
 from cv2 import imread
+from fuzzywuzzy import fuzz
 
 from database import Database
 from movie import Movie
 from api import KinkAPI
+
 
 
 class Settings():
@@ -80,12 +81,18 @@ class KinkSorter():
                     self._scan_directory(full_path, recursion_depth)
 
     def _get_correct_api(self, dir_name):
-        search = dir_name.replace(' ', '').lower()
+        scores = []
         for name, api in self.settings.apis.items():
-            resps = api.get_site_responsibilities()
-            if search in resps:
-                return api
+            responsibilities = api.get_site_responsibilities()
+            for resp in responsibilities:
+                score = fuzz.token_set_ratio(dir_name, resp)
+                scores.append((score, api, resp))
 
+        scores.sort(key=lambda f: f[0])
+        if scores[-1][0] > 85:
+            return scores[-1][1]
+
+        logging.warning('Found no suitable API for folder "{}", consider naming it more appropriate'.format(dir_name))
         return None
 
     def sort(self, simulation=True):

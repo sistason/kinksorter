@@ -56,8 +56,8 @@ class KinkAPI():
             for site_list_ in site_lists:
                 for site_ in site_list_.find_all('a'):
                     if site_.attrs.get('href','').startswith('/channel/'):
-                        channel_ = site_.text.strip().lower()
-                        channel_names.append(channel_.replace(' ', ''))
+                        channel_ = site_.text.strip()
+                        channel_names.append(channel_)
                         channel_names.append(''.join([c[0] for c in channel_.split()]))
 
             self._site_capabilities = channel_names
