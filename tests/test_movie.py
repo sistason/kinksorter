@@ -6,7 +6,8 @@ import tempfile
 
 from movie import Movie, movie_is_empty, movie_is_filled
 from api import KinkAPI
-from kinksorter import Settings
+from utils import Settings
+
 
 class MovieShould(unittest.TestCase):
 
@@ -28,6 +29,7 @@ class MovieShould(unittest.TestCase):
         assert_that(self.movie.get_shootids('12345 1234'), contains(12345, 1234))
         assert_that(self.movie.get_shootids('2016-01-12'), equal_to([]))
         assert_that(self.movie.get_shootids('123456789'), equal_to([]))
+        # TODO: assert_that(self.movie.get_shootids('091224'), equal_to([]))
 
     def test_logic(self):
         self.movie.properties['id'] = 0

@@ -9,7 +9,7 @@ import datetime
 from database import Database
 from movie import Movie
 from api import KinkAPI
-from kinksorter import Settings
+from utils import Settings
 
 
 class DatabaseShould(unittest.TestCase):

@@ -1,33 +1,14 @@
 #!/usr/bin/env python3
 
+import logging
 import os
+import re
 import shutil
 import subprocess
-import logging
-from cv2 import imread
-from fuzzywuzzy import fuzz
 
 from database import Database
 from movie import Movie
-from api import KinkAPI
-
-
-
-class Settings():
-    RECURSION_DEPTH = 5
-    interactive = False
-    shootid_template = None
-    apis = {}
-
-    def __init__(self, args):
-        self.interactive = args.get('interactive', False)
-        self._read_shootid_template(args.get('shootid_template', None))
-        self.apis = {KinkAPI.name: KinkAPI()}
-
-    def _read_shootid_template(self, template):
-        if not template or not os.path.exists(template):
-            return
-        self.shootid_template = imread(template, 0)
+import utils
 
 
 class KinkSorter():
@@ -45,12 +26,12 @@ class KinkSorter():
         self.database.read()
 
     def update_database(self):
-        old_db_size_ = len(self.database.movies)
+        old_db_len_ = len(self.database.movies)
         self._scan_directory(self.storage_root_path, self.settings.RECURSION_DEPTH)
         self.database.write()
 
-        new_db_size_ = len(self.database.movies)
-        logging.info('{} movies found, {} new ones'.format(new_db_size_, new_db_size_-old_db_size_))
+        new_db_len_ = len(self.database.movies)
+        logging.info('{} movies found, {} new ones'.format(new_db_len_, new_db_len_-old_db_len_))
         try:
             self.database.update_all_movies()
         except KeyboardInterrupt as e:
@@ -59,7 +40,7 @@ class KinkSorter():
 
         self.database.write()
 
-    def _scan_directory(self, dir_, recursion_depth):
+    def _scan_directory(self, dir_, recursion_depth=0):
         recursion_depth -= 1
         for entry in os.scandir(dir_):
             full_path = os.path.join(self.storage_root_path, dir_, entry.path)
@@ -73,27 +54,12 @@ class KinkSorter():
                         self.database.add_movie(m_)
             if entry.is_dir():
                 if recursion_depth == self.settings.RECURSION_DEPTH - 1:
-                    self._current_site_api = self._get_correct_api(entry.name)
+                    self._current_site_api = utils.get_correct_api(self.settings.apis, entry.name)
                     name_ = self._current_site_api.name if self._current_site_api else '<None>'
                     logging.info('Scanning site-directory (API: {}) {}...'.format(name_, entry.path))
 
                 if recursion_depth > 0:
                     self._scan_directory(full_path, recursion_depth)
-
-    def _get_correct_api(self, dir_name):
-        scores = []
-        for name, api in self.settings.apis.items():
-            responsibilities = api.get_site_responsibilities()
-            for resp in responsibilities:
-                score = fuzz.token_set_ratio(dir_name, resp)
-                scores.append((score, api, resp))
-
-        scores.sort(key=lambda f: f[0])
-        if scores[-1][0] > 85:
-            return scores[-1][1]
-
-        logging.warning('Found no suitable API for folder "{}", consider naming it more appropriate'.format(dir_name))
-        return None
 
     def sort(self, simulation=True):
         storage_path, old_storage_name = os.path.split(self.storage_root_path)
@@ -139,13 +105,63 @@ class KinkSorter():
         for i, (path_, movie) in enumerate(self.database.movies.items()):
             if os.path.exists(path_):
                 continue
+            movie_name = str(movie)
             site_ = movie.properties['site'] if 'site' in movie.properties and movie.properties['site'] else 'unsorted'
             sorted_site_path = os.path.join(sorted_path, site_)
-            sorted_movie_path = os.path.join(sorted_site_path, str(movie))
+            sorted_movie_path = os.path.join(sorted_site_path, movie_name)
             if os.path.exists(sorted_movie_path):
-                shutil.move(sorted_movie_path, path_)
+                if re.match(r'https?://|ftps?://', path_):
+                    logging.info('Movie "{}" came from read-only storage'.format(movie_name))
+                    new_ro_dir = os.path.join(storage_path, 'new_from_read-only')
+                    if not os.path.exists(new_ro_dir):
+                        os.mkdir(new_ro_dir)
+                    new_ro_site_dir = os.path.join(new_ro_dir, site_)
+                    if not os.path.exists(new_ro_site_dir):
+                        os.mkdir(new_ro_site_dir)
+                    shutil.move(sorted_movie_path, os.path.join(new_ro_site_dir, movie_name))
+                else:
+                    shutil.move(sorted_movie_path, path_)
 
-            logging.info('Reverted movie "{}"... ({}/{})'.format(str(movie), i + 1, n))
+            logging.info('Reverted movie "{}"... ({}/{})'.format(movie_name, i + 1, n))
+
+    def merge(self, merge_dir, simulation=True):
+        self._scan_merge_dir(merge_dir)
+
+
+
+        # sort
+
+    def _scan_merge_dir(self, address):
+        """ Add all movies at the address to the database """
+        if re.match(r'ftps?://', address):
+            listing = utils.get_ftp_listing(address)
+            for path_, (name_, facts) in listing.items():
+                full_path = os.path.join(path_, name_)
+                # TODO
+#                self._current_site_api = utils.get_correct_api(self.settings.apis, path_)
+#                name_ = self._current_site_api.name if self._current_site_api else '<None>'
+#                logging.info('Scanning site-directory (API: {}) {}...'.format(name_, entry.path))
+
+#                if ("media-type" in facts and "video/" != facts["media-type"]
+#                    or "perm" in facts): # TODO: facts['perm'] == fitting
+
+#                    logging.debug('\tAdding movie {}...'.format(full_path))
+#                    m_ = Movie(full_path, api=self._current_site_api)
+#                    self.database.add_movie(m_)
+
+
+#                if recursion_depth > 0:
+#                    self._scan_directory(full_path, recursion_depth)
+
+        elif re.match(r'https?://', address):
+            listing = utils.get_http_listing(address)
+            for path_, (name_, facts) in listing.items():
+                full_path = os.path.join(path_, name_)
+                # TODO
+
+        else:
+            self._scan_directory(address, self.settings.RECURSION_DEPTH)
+
 
 if __name__ == '__main__':
     import argparse
@@ -160,6 +176,8 @@ if __name__ == '__main__':
 
     argparser.add_argument('storage_root_path', type=argcheck_dir,
                            help='Set the root path of the storage')
+    argparser.add_argument('-m', '--merge',
+                           help='Merge given directory into the storage')
     argparser.add_argument('-t', '--tested', action="store_true",
                            help="Move movies instead of symlinking them")
     argparser.add_argument('-i', '--interactive', action="store_true",
@@ -171,7 +189,7 @@ if __name__ == '__main__':
 
     args = argparser.parse_args()
 
-    settings = Settings(vars(args))
+    settings = utils.Settings(vars(args))
     m = KinkSorter(args.storage_root_path, settings)
 
     logging.basicConfig(format='%(levelname)s:%(funcName)s:%(message)s',
@@ -182,3 +200,5 @@ if __name__ == '__main__':
     else:
         m.update_database()
         m.sort(simulation=not args.tested)
+        if args.merge:
+            m.merge(args.merge, simulation=not args.tested)

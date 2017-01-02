@@ -178,7 +178,7 @@ class Movie():
     def __eq__(self, other):
         if movie_is_empty(self) and movie_is_empty(other):
             return self.base_name == other.base_name
-        return (not (movie_is_empty(self) and movie_is_empty(other))
+        return self.file_path == other.file_path or (not (movie_is_empty(self) and movie_is_empty(other))
                 and self.properties.get('title','') == other.properties.get('title','')
                 and self.properties.get('performers', []) == other.properties.get('performers', [])
                 and self.properties.get('date', None) == other.properties.get('date', None)
