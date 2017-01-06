@@ -25,10 +25,13 @@ class KinkSorter():
         self.database = Database(database_path, self.settings)
         self.database.read()
 
-    def update_database(self):
+    def update_database(self, merge_addresses):
         old_db_len_ = len(self.database.movies)
         self._scan_directory(self.storage_root_path, self.settings.RECURSION_DEPTH)
         self.database.write()
+
+        for merge_address in merge_addresses:
+            self.scan_address(merge_address)
 
         new_db_len_ = len(self.database.movies)
         logging.info('{} movies found, {} new ones'.format(new_db_len_, new_db_len_-old_db_len_))
@@ -39,6 +42,41 @@ class KinkSorter():
             self.database.write()
 
         self.database.write()
+
+    def scan_address(self, address):
+        """ Add all movies at the address to the database """
+        if re.match(r'ftps?://', address):
+            self._scan_ftp(address)
+        elif re.match(r'https?://', address):
+            self._scan_http(address)
+        else:
+            self._scan_directory(address, self.settings.RECURSION_DEPTH)
+
+    def _scan_ftp(self, address):
+        listing = utils.get_ftp_listing(address)
+        for path_, (name_, facts) in listing.items():
+            full_path = os.path.join(path_, name_)
+            # TODO
+            #                self._current_site_api = utils.get_correct_api(self.settings.apis, path_)
+            #                name_ = self._current_site_api.name if self._current_site_api else '<None>'
+            #                logging.info('Scanning site-directory (API: {}) {}...'.format(name_, entry.path))
+
+            #                if ("media-type" in facts and "video/" != facts["media-type"]
+            #                    or "perm" in facts): # TODO: facts['perm'] == fitting
+
+            #                    logging.debug('\tAdding movie {}...'.format(full_path))
+            #                    m_ = Movie(full_path, api=self._current_site_api)
+            #                    self.database.add_movie(m_)
+
+
+            #                if recursion_depth > 0:
+            #                    self._scan_directory(full_path, recursion_depth)
+
+    def _scan_http(self, address):
+            listing = utils.get_http_listing(address)
+            for path_, (name_, facts) in listing.items():
+                full_path = os.path.join(path_, name_)
+                # TODO
 
     def _scan_directory(self, dir_, recursion_depth=0):
         recursion_depth -= 1
@@ -136,44 +174,6 @@ class KinkSorter():
 
             logging.info('Reverted movie "{}"... ({}/{})'.format(movie_name, i + 1, n))
 
-    def merge(self, merge_dir):
-        self._scan_merge_dir(merge_dir)
-
-
-
-        # sort
-
-    def _scan_merge_dir(self, address):
-        """ Add all movies at the address to the database """
-        if re.match(r'ftps?://', address):
-            listing = utils.get_ftp_listing(address)
-            for path_, (name_, facts) in listing.items():
-                full_path = os.path.join(path_, name_)
-                # TODO
-#                self._current_site_api = utils.get_correct_api(self.settings.apis, path_)
-#                name_ = self._current_site_api.name if self._current_site_api else '<None>'
-#                logging.info('Scanning site-directory (API: {}) {}...'.format(name_, entry.path))
-
-#                if ("media-type" in facts and "video/" != facts["media-type"]
-#                    or "perm" in facts): # TODO: facts['perm'] == fitting
-
-#                    logging.debug('\tAdding movie {}...'.format(full_path))
-#                    m_ = Movie(full_path, api=self._current_site_api)
-#                    self.database.add_movie(m_)
-
-
-#                if recursion_depth > 0:
-#                    self._scan_directory(full_path, recursion_depth)
-
-        elif re.match(r'https?://', address):
-            listing = utils.get_http_listing(address)
-            for path_, (name_, facts) in listing.items():
-                full_path = os.path.join(path_, name_)
-                # TODO
-
-        else:
-            self._scan_directory(address, self.settings.RECURSION_DEPTH)
-
 
 if __name__ == '__main__':
     import argparse
@@ -188,15 +188,14 @@ if __name__ == '__main__':
 
     argparser.add_argument('storage_root_path', type=argcheck_dir,
                            help='Set the root path of the storage, has to be a writeable directory')
-    argparser.add_argument('merge_paths', nargs='*',
-                           help='Merge (Copy) given storage(s) into the root-storage.')
-
+    argparser.add_argument('merge_addresses', nargs='*',
+                           help='Merge given storage(s) into the root-storage.')
     argparser.add_argument('-t', '--tested', action="store_true",
-                           help="Move movies instead of symlinking them")
+                           help="Move movies instead of symlinking/listing them")
     argparser.add_argument('-i', '--interactive', action="store_true",
-                           help="Confirm each movie and query fails manually")
+                           help="Confirm each action and query fails manually")
     argparser.add_argument('-r', '--revert', action="store_true",
-                           help="Revert the sorted movies back to their original state when first run (implies -t)")
+                           help="Revert the sorted movies back to their original state in the database")
     argparser.add_argument('-s', '--shootid_template', default='templates/shootid.jpeg',
                            help="Set the template-image for finding the Shoot ID")
 
@@ -211,7 +210,5 @@ if __name__ == '__main__':
     if args.revert:
         m.revert()
     else:
-        m.update_database()
+        m.update_database(args.merge_addresses)
         m.sort()
-        if args.merge_paths:
-            m.merge(args.merge_paths)
