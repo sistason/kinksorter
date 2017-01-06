@@ -5,16 +5,21 @@ import os
 import cv2
 import numpy as np
 import subprocess
-import tempfile
 
 
-class Movie():
-    UNLIKELY_NUMBERS = {'quality': [360,480,720,1080,1440,2160], 'date': list(range(1999, 2030))+list(range(0, 32))}
+class Movie:
+    UNLIKELY_NUMBERS = {'quality': [360, 480, 720, 1080, 1440, 2160],
+                        'date': list(range(1999, 2030))+list(range(0, 32))}
     settings = None
 
     def __init__(self, file_path, api, properties=None):
         self.file_path = file_path
-        self._unlikely_numbers_re = re.compile('|'.join(str(i) + 'p' for i in self.UNLIKELY_NUMBERS['quality']))
+        self._unlikely_shootid_quality_re = re.compile('|'.join(str(i) + 'p' for i in self.UNLIKELY_NUMBERS['quality']))
+        # Filter out dates like 091224 or (20)150101
+        self._unlikely_shootid_date_re = re.compile('([01]\d)({})({})'.format(
+            '|'.join(['{:02}'.format(i) for i in range(1, 13)]),
+            '|'.join(['{:02}'.format(i) for i in range(1, 32)])
+        ))
         self.api = api
 
         base_path_, filename_ = os.path.split(file_path)
@@ -51,12 +56,15 @@ class Movie():
             self.properties.update(self.interactive_query(likely_date))
 
     def get_shootids(self, base_name):
-        base_name = re.sub(self._unlikely_numbers_re, '', base_name)
+        base_name = re.sub(self._unlikely_shootid_quality_re, '', base_name)
         search_shootid = []
 
         # FIXME: \d{2,6} scrambles numbers, (?:\D|^)(\d{2,6})(?:\D|$) has problems
         for k in re.findall(r"\d+", base_name):
             if 2 <= len(k) <= 6 and int(k) not in self.UNLIKELY_NUMBERS['date']:
+                if self._unlikely_shootid_date_re.search(k):
+                    logging.debug('"{}": Most likely no shootid, but a date. Skipping...'.format(k))
+                    continue
                 search_shootid.append(int(k))
 
         if len(search_shootid) > 1:
@@ -72,8 +80,8 @@ class Movie():
 
         user_input = "don't stop yet :)"
         while user_input:
-            user_input = input('Please input an ID, a data or a name of the movie in the format:\n' +
-                               '  ID: i<id>; Date: d<date YYYY-mm-dd>; Name: <name>; Abort: <empty string>\n   ').strip()
+            user_input = input('Please input an ID, a data or a name of the movie in the format:\n  ' +
+                               'ID: i<id>; Date: d<date YYYY-mm-dd>; Name: <name>; Abort: <empty string>\n   ').strip()
             if user_input.startswith('i'):
                 id_ = int(user_input[1:]) if user_input[1:].isdigit() else 0
                 if not id_:
@@ -156,9 +164,8 @@ class Movie():
         shootid_crop = red_frame[max_loc[1]:max_loc[1]+template_height, max_loc[0]+template_width:]
 
         shootid = self.recognize_shootid(shootid_crop)
-        if not shootid:
-            pass
-            #self.debug_frame(shootid_crop)
+        # if not shootid:
+        #     self.debug_frame(shootid_crop)
 
         return shootid
 
@@ -178,12 +185,12 @@ class Movie():
     def __eq__(self, other):
         if movie_is_empty(self) and movie_is_empty(other):
             return self.base_name == other.base_name
-        return self.file_path == other.file_path or (not (movie_is_empty(self) and movie_is_empty(other))
-                and self.properties.get('title','') == other.properties.get('title','')
+        return self.file_path == other.file_path or \
+            (self.properties.get('title', '') == other.properties.get('title', '')
                 and self.properties.get('performers', []) == other.properties.get('performers', [])
                 and self.properties.get('date', None) == other.properties.get('date', None)
                 and self.properties.get('site', '') == other.properties.get('site', '')
-                and self.properties.get('id',0) == other.properties.get('id',0))
+                and self.properties.get('id', 0) == other.properties.get('id', 0))
 
     def __str__(self):
         return format_movie(self)
@@ -210,8 +217,8 @@ def format_movie(movie):
 
 
 class Fake:
-    def __init__(self, p,b=''):
-        self.properties=p
+    def __init__(self, p, b=''):
+        self.properties = p
         self.base_name = b
         self.subdirname = 'fake'
         self.extension = ''
@@ -235,5 +242,3 @@ def movie_is_empty(movie):
                 and not movie.properties.get('site', True)
                 and ('date' not in movie.properties or int(movie.properties['date'].strftime("%s")) <= 0)
                 and movie.properties.get('id', 0) == 0)
-
-
