@@ -9,15 +9,15 @@ from os import path, access, W_OK, R_OK
 from movie import Movie
 
 
-class TqdmLoggingHandler (logging.Handler):
-    def __init__ (self, level = logging.NOTSET):
-        super (self.__class__, self).__init__ (level)
+class TqdmLoggingHandler(logging.Handler):
+    def __init__(self, level=logging.NOTSET):
+        super(self.__class__, self).__init__(level)
 
-    def emit (self, record):
+    def emit(self, record):
         try:
-            msg = self.format (record)
-            tqdm.tqdm.write (msg)
-            self.flush ()
+            msg = self.format(record)
+            tqdm.tqdm.write(msg)
+            self.flush()
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
@@ -43,6 +43,10 @@ class Database():
             if movie.file_path == m_:
                 logging.debug('Movie "{}" was already in the database'.format(movie))
                 return True
+
+    def add_to_merge_diff_list(self, old, new):
+        if not (old, new) in self.merge_diff_list:
+            self.merge_diff_list.append((old, new))
 
     def update_all_movies(self):
         log = logging.getLogger(__name__)

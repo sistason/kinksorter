@@ -50,7 +50,7 @@ class KinkSorter():
         elif re.match(r'https?://', address):
             self._scan_http(address)
         else:
-            self._scan_directory(address, self.settings.RECURSION_DEPTH)
+            self._scan_directory(address.replace('file://', ''), self.settings.RECURSION_DEPTH)
 
     def _scan_ftp(self, address):
         listing = utils.get_ftp_listing(address)
@@ -132,10 +132,13 @@ class KinkSorter():
 
             self._move_movie(old_movie_path, new_movie_path)
 
+        print('Movies to get:')
+        print('\t'+'\n\t'.join([o for o,n    in self.database.merge_diff_list]))
+
     def _move_movie(self, old_movie_path, new_movie_path):
         if re.match(r'https?://|ftps?://', old_movie_path):
             if self.settings.simulation:
-                self.database.merge_diff_list.append((old_movie_path, new_movie_path))
+                self.database.add_to_merge_diff_list(old_movie_path, new_movie_path)
             else:
                 file_ = utils.get_remote_file(old_movie_path)
                 if file_ is not None and os.path.exists(file_):
@@ -143,7 +146,7 @@ class KinkSorter():
         else:
             if self.settings.simulation:
                 os.symlink(old_movie_path, new_movie_path)
-                self.database.merge_diff_list.append((old_movie_path, new_movie_path))
+                self.database.add_to_merge_diff_list(old_movie_path, new_movie_path)
             else:
                 shutil.move(old_movie_path, new_movie_path)
 
