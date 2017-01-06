@@ -12,7 +12,7 @@ import utils
 
 
 class KinkSorter():
-    settings = {}
+    settings = None
 
     def __init__(self, storage_root_path, settings):
         logging.basicConfig(format='%(message)s', level=logging.INFO)
@@ -61,10 +61,10 @@ class KinkSorter():
                 if recursion_depth > 0:
                     self._scan_directory(full_path, recursion_depth)
 
-    def sort(self, simulation=True):
+    def sort(self):
         storage_path, old_storage_name = os.path.split(self.storage_root_path)
         new_storage_path = os.path.join(storage_path, old_storage_name + '_kinksorted')
-        if simulation:
+        if self.settings.simulation:
             new_storage_path += '_0'
             while os.path.exists(new_storage_path):
                 p_, cnt_ = new_storage_path.rsplit('_',1)
@@ -92,8 +92,20 @@ class KinkSorter():
                     continue
                 os.remove(new_movie_path)
 
-            if simulation:
+            self._move_movie(old_movie_path, new_movie_path)
+
+    def _move_movie(self, old_movie_path, new_movie_path):
+        if re.match(r'https?://|ftps?://', old_movie_path):
+            if self.settings.simulation:
+                self.database.merge_diff_list.append((old_movie_path, new_movie_path))
+            else:
+                file_ = utils.get_remote_file(old_movie_path)
+                if file_ is not None and os.path.exists(file_):
+                    shutil.move(file_, new_movie_path)
+        else:
+            if self.settings.simulation:
                 os.symlink(old_movie_path, new_movie_path)
+                self.database.merge_diff_list.append((old_movie_path, new_movie_path))
             else:
                 shutil.move(old_movie_path, new_movie_path)
 
@@ -112,7 +124,7 @@ class KinkSorter():
             if os.path.exists(sorted_movie_path):
                 if re.match(r'https?://|ftps?://', path_):
                     logging.info('Movie "{}" came from read-only storage'.format(movie_name))
-                    new_ro_dir = os.path.join(storage_path, 'new_from_read-only')
+                    new_ro_dir = os.path.join(storage_path, 'from_read-only')
                     if not os.path.exists(new_ro_dir):
                         os.mkdir(new_ro_dir)
                     new_ro_site_dir = os.path.join(new_ro_dir, site_)
@@ -124,7 +136,7 @@ class KinkSorter():
 
             logging.info('Reverted movie "{}"... ({}/{})'.format(movie_name, i + 1, n))
 
-    def merge(self, merge_dir, simulation=True):
+    def merge(self, merge_dir):
         self._scan_merge_dir(merge_dir)
 
 
@@ -175,9 +187,10 @@ if __name__ == '__main__':
     argparser = argparse.ArgumentParser(description="Easy Kink storage renaming/structuring")
 
     argparser.add_argument('storage_root_path', type=argcheck_dir,
-                           help='Set the root path of the storage')
-    argparser.add_argument('-m', '--merge',
-                           help='Merge given directory into the storage')
+                           help='Set the root path of the storage, has to be a writeable directory')
+    argparser.add_argument('merge_paths', nargs='*',
+                           help='Merge (Copy) given storage(s) into the root-storage.')
+
     argparser.add_argument('-t', '--tested', action="store_true",
                            help="Move movies instead of symlinking them")
     argparser.add_argument('-i', '--interactive', action="store_true",
@@ -199,6 +212,6 @@ if __name__ == '__main__':
         m.revert()
     else:
         m.update_database()
-        m.sort(simulation=not args.tested)
-        if args.merge:
-            m.merge(args.merge, simulation=not args.tested)
+        m.sort()
+        if args.merge_paths:
+            m.merge(args.merge_paths)

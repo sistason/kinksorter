@@ -1,5 +1,6 @@
 import os
 import logging
+import re
 
 from cv2 import imread
 from fuzzywuzzy import fuzz
@@ -12,11 +13,13 @@ from api import KinkAPI
 class Settings():
     RECURSION_DEPTH = 5
     interactive = False
+    simulation = True
     shootid_template = None
     apis = {}
 
     def __init__(self, args):
         self.interactive = args.get('interactive', False)
+        self.simulation = not args.get('tested', False)
         self._read_shootid_template(args.get('shootid_template', None))
         self.apis = {KinkAPI.name: KinkAPI()}
 
@@ -75,3 +78,18 @@ def _scan_ftp(ftp_server, path_, listing, recursion_depth):
 def get_http_listing(address):
     # TODO
     return {}
+
+
+def get_remote_file(address):
+    if re.match(r'https?://', address):
+        return _get_http_file(address)
+    if re.match(r'ftps?://', address):
+        return _get_ftp_file(address)
+
+
+def _get_http_file(address):
+    ...
+
+
+def _get_ftp_file(address):
+    ...

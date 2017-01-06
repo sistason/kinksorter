@@ -9,3 +9,5 @@ Able to create diffs of two archives to ease integration/merging.
 - Datenbank im ordner mit relative filename -> kink-id.
   1. Datenbank erstellen/vervollständigen
   2. Neu Sortieren
+
+ftp(s)://, http(s):// and file://

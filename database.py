@@ -27,6 +27,7 @@ class TqdmLoggingHandler (logging.Handler):
 class Database():
     _path = ''
     movies = {} # filename:Movie(),
+    merge_diff_list = []
 
     def __init__(self, database_path, settings):
         self._path = database_path
