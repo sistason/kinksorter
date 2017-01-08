@@ -13,6 +13,7 @@ import utils
 
 class KinkSorter():
     settings = None
+    _current_site_api = None
 
     def __init__(self, storage_root_path, settings):
         logging.basicConfig(format='%(message)s', level=logging.INFO)
@@ -21,7 +22,7 @@ class KinkSorter():
         self.settings = settings
         Movie.settings = settings
 
-        database_path = path.join(self.storage_root_path, '.kinksorter_db')
+        database_path = os.path.join(self.storage_root_path, '.kinksorter_db')
         self.database = Database(database_path, self.settings)
         self.database.read()
 
@@ -85,7 +86,7 @@ class KinkSorter():
             if entry.is_file() or entry.is_symlink():
                 logging.debug('\tScanning file {}...'.format(entry.path))
                 if os.access(full_path, os.R_OK):
-                    mime_type = subprocess.check_output(['file', '-b', '--mime-type', full_path])
+                    mime_type = self._get_mime_type(full_path)
                     if mime_type and mime_type.decode('utf-8').startswith('video/'):
                         logging.debug('\tAdding movie {}...'.format(entry.path))
                         m_ = Movie(full_path, api=self._current_site_api)
@@ -99,6 +100,9 @@ class KinkSorter():
                 if recursion_depth > 0:
                     self._scan_directory(full_path, recursion_depth)
 
+    def _get_mime_type(self, full_path):
+        return subprocess.check_output(['file', '-b', '--mime-type', full_path])
+
     def sort(self):
         storage_path, old_storage_name = os.path.split(self.storage_root_path)
         new_storage_path = os.path.join(storage_path, old_storage_name + '_kinksorted')
@@ -111,7 +115,7 @@ class KinkSorter():
             os.mkdir(new_storage_path)
 
         for old_movie_path, movie in self.database.movies.items():
-            if not os.path.exists(old_movie_path) or os.access(old_movie_path, os.R_OK):
+            if not (os.path.exists(old_movie_path) or os.access(old_movie_path, os.R_OK)):
                 continue
             site_ = movie.properties['site'] if 'site' in movie.properties and movie.properties['site'] else 'unsorted'
             new_site_path = os.path.join(new_storage_path, site_)
@@ -132,8 +136,9 @@ class KinkSorter():
 
             self._move_movie(old_movie_path, new_movie_path)
 
-        print('Movies to get:')
-        print('\t'+'\n\t'.join([o for o,n    in self.database.merge_diff_list]))
+        if self.database.merge_diff_list:
+            print('Files to get:')
+            print('\t'+'\n\t'.join([o for o,n    in self.database.merge_diff_list]))
 
     def _move_movie(self, old_movie_path, new_movie_path):
         if re.match(r'https?://|ftps?://', old_movie_path):
@@ -175,7 +180,13 @@ class KinkSorter():
                 else:
                     shutil.move(sorted_movie_path, path_)
 
+                if not os.listdir(sorted_site_path):
+                    os.rmdir(sorted_site_path)
+
             logging.info('Reverted movie "{}"... ({}/{})'.format(movie_name, i + 1, n))
+
+        if not os.listdir(sorted_path):
+            os.rmdir(sorted_path)
 
 
 if __name__ == '__main__':
@@ -209,7 +220,6 @@ if __name__ == '__main__':
 
     logging.basicConfig(format='%(levelname)s:%(funcName)s:%(message)s',
                         level=logging.INFO)
-    logging.basicConfig()
     if args.revert:
         m.revert()
     else:

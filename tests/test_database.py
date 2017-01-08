@@ -8,7 +8,6 @@ import datetime
 
 from database import Database
 from movie import Movie
-from api import KinkAPI
 from utils import Settings
 
 
@@ -26,6 +25,9 @@ class DatabaseShould(unittest.TestCase):
         properties_ = {'title': 'test', 'performers': ['Testy Mc. Test'],
                        'date': datetime.date(2007, 1, 1), 'site': 'Test Site', 'id': 1337}
         m_ = Movie(self.temp_movie_file.name, None, properties_)
+        self.database.add_movie(m_)
+        assert_that(self.database.movies, equal_to({self.temp_movie_file.name: m_}))
+
         self.database.add_movie(m_)
         assert_that(self.database.movies, equal_to({self.temp_movie_file.name: m_}))
 

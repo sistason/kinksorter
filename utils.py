@@ -38,7 +38,7 @@ def get_correct_api(apis, dir_name):
             scores.append((score, api, resp))
 
     scores.sort(key=lambda f: f[0])
-    if scores[-1][0] > 85:
+    if scores and scores[-1][0] > 85:
         return scores[-1][1]
 
     logging.warning('Found no suitable API for folder "{}", consider naming it more appropriate'.format(dir_name))
