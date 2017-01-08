@@ -2,9 +2,6 @@ import re
 import logging
 import datetime
 import os
-import cv2
-import numpy as np
-import subprocess
 
 
 class Movie:
@@ -44,7 +41,7 @@ class Movie:
             else:
                 shootid = shootids[0]
         else:
-            shootid = self.get_shootid_through_image_recognition()
+            shootid = self.api.get_shootid_through_image_recognition(self.file_path)
 
         if shootid:
             result = self.api.query_for_id(shootid)
@@ -129,58 +126,6 @@ class Movie:
             except KeyboardInterrupt:
                 return 0
         return int(id_)
-
-    def get_shootid_through_image_recognition(self):
-        capture = cv2.VideoCapture(self.file_path)
-        frame_count = capture.get(cv2.CAP_PROP_FRAME_COUNT)
-        if not frame_count:
-            return 0
-        template = self.settings.shootid_template
-        if template is None:
-            return 0
-        fps = capture.get(cv2.CAP_PROP_FPS)
-        ret = capture.set(cv2.CAP_PROP_POS_FRAMES, frame_count - int(4*fps))
-        frame_list = []
-        while ret:
-            ret, frame_ = capture.read()
-            if ret:
-                frame_list.append((frame_.max(), frame_))
-
-        if not frame_list:
-            return 0
-        frame_list.sort(key=lambda f: f[0])
-        best_frame = frame_list[-1][1]
-
-        red_frame = best_frame[:, :, 2]
-
-        if template.dtype != np.dtype('uint8'):
-            template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-        result = cv2.matchTemplate(red_frame, template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, max_loc = cv2.minMaxLoc(result)
-        if max_val < 0.7:
-            return 0
-
-        template_height, template_width = template.shape
-        shootid_crop = red_frame[max_loc[1]:max_loc[1]+template_height, max_loc[0]+template_width:]
-
-        shootid = self.recognize_shootid(shootid_crop)
-        # if not shootid:
-        #     self.debug_frame(shootid_crop)
-
-        return shootid
-
-    def recognize_shootid(self, shootid_img):
-        # FIXME: filepath-independence by piping the image?
-        tmp_image = '/tmp/kinksorter_shootid.jpeg'
-        cv2.imwrite(tmp_image, shootid_img)
-        output = subprocess.run(['tesseract', tmp_image, 'stdout', 'digits'], stdout=subprocess.PIPE)
-        if output.stdout is not None and output.stdout.strip().isdigit():
-            return int(output.stdout)
-        return 0
-
-    def debug_frame(self, frame):
-        cv2.imwrite('/tmp/test.jpeg', frame)
-        os.system('eog /tmp/test.jpeg 2>/dev/null')
 
     def __eq__(self, other):
         if movie_is_empty(self) and movie_is_empty(other):

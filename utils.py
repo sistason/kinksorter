@@ -9,24 +9,22 @@ from ftplib import FTP
 from api import KinkAPI
 
 
-
 class Settings():
     RECURSION_DEPTH = 5
     interactive = False
     simulation = True
-    shootid_template = None
     apis = {}
 
     def __init__(self, args):
         self.interactive = args.get('interactive', False)
         self.simulation = not args.get('tested', False)
-        self._read_shootid_template(args.get('shootid_template', None))
-        self.apis = {KinkAPI.name: KinkAPI()}
+        kink_template = self._read_shootid_template(args.get('shootid_template', None))
+        self.apis = {KinkAPI.name: KinkAPI(kink_template)}
 
     def _read_shootid_template(self, template):
         if not template or not os.path.exists(template):
             return
-        self.shootid_template = imread(template, 0)
+        return imread(template, 0)
 
 
 def get_correct_api(apis, dir_name):
