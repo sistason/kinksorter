@@ -14,7 +14,7 @@ class KinkAPI():
     _headers = {}
     name = 'Kink.com'
 
-    def __init__(self, template):
+    def __init__(self, template=None):
         logging.getLogger("requests").setLevel(logging.WARNING)
         self.shootid_template = template
         self.set_kink_headers()
