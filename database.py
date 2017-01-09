@@ -27,6 +27,7 @@ class TqdmLoggingHandler(logging.Handler):
 class Database():
     _path = ''
     movies = {} # filename:Movie(),
+    own_movies = {}
     merge_diff_list = []
 
     def __init__(self, database_path, settings):
@@ -44,9 +45,9 @@ class Database():
                 logging.debug('Movie "{}" was already in the database'.format(movie))
                 return True
 
-    def add_to_merge_diff_list(self, old, new):
-        if not (old, new) in self.merge_diff_list:
-            self.merge_diff_list.append((old, new))
+    def add_to_merge_diff_list(self, movie_path):
+        if movie_path not in self.merge_diff_list and movie_path not in self.own_movies.keys():
+            self.merge_diff_list.append(movie_path)
 
     def update_all_movies(self):
         log = logging.getLogger(__name__)

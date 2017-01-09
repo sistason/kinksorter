@@ -13,13 +13,16 @@ class Settings():
     RECURSION_DEPTH = 5
     interactive = False
     simulation = True
-    apis = {}
+    apis = {'Default': None}
 
     def __init__(self, args):
         self.interactive = args.get('interactive', False)
         self.simulation = not args.get('tested', False)
         kink_template = self._read_shootid_template(args.get('shootid_template', None))
-        self.apis = {KinkAPI.name: KinkAPI(kink_template)}
+        self.apis[KinkAPI.name] = KinkAPI(kink_template)
+        if self.interactive:
+            # Default to most probable API only if interactive, so the results are validated by user
+            self.apis['Default'] = self.apis[KinkAPI.name]
 
     def _read_shootid_template(self, template):
         if not template or not os.path.exists(template):
@@ -30,6 +33,8 @@ class Settings():
 def get_correct_api(apis, dir_name):
     scores = []
     for name, api in apis.items():
+        if api is None:
+            continue
         responsibilities = api.get_site_responsibilities()
         for resp in responsibilities:
             score = fuzz.token_set_ratio(dir_name, resp)
@@ -40,7 +45,7 @@ def get_correct_api(apis, dir_name):
         return scores[-1][1]
 
     logging.warning('Found no suitable API for folder "{}", consider naming it more appropriate'.format(dir_name))
-    return None
+    return apis.get('Default', None)
 
 
 def get_ftp_listing(address):

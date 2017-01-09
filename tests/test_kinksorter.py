@@ -7,6 +7,7 @@ import os
 import shutil
 import tempfile
 import datetime
+import logging
 
 from movie import Movie
 from utils import Settings
@@ -19,6 +20,8 @@ class KinksorterShould(unittest.TestCase):
         self.root_storage = tempfile.TemporaryDirectory()
         settings = Settings({'tested':True})
         settings.apis['Kink.com']._site_capabilities = []
+        if settings.apis.get('Default', None) is not None:
+            settings.apis['Default']._site_capabilities = []
         self.kinksorter = KinkSorter(self.root_storage.name, settings)
         self.kinksorter._get_mime_type = MagicMock(return_value=b"video/")
 
@@ -84,4 +87,6 @@ class KinksorterShould(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(format='%(levelname)s:%(funcName)s:%(message)s',
+                        level=logging.WARNING)
     unittest.main()

@@ -13,12 +13,12 @@ import utils
 
 class KinkSorter():
     settings = None
-    _current_site_api = None
 
     def __init__(self, storage_root_path, settings):
         logging.basicConfig(format='%(message)s', level=logging.INFO)
 
         self.storage_root_path = storage_root_path
+        self._current_site_api = settings.apis.get('Default', None)
         self.settings = settings
         Movie.settings = settings
 
@@ -29,6 +29,7 @@ class KinkSorter():
     def update_database(self, merge_addresses):
         old_db_len_ = len(self.database.movies)
         self._scan_directory(self.storage_root_path, self.settings.RECURSION_DEPTH)
+        self.database.own_movies = self.database.movies.copy()
         self.database.write()
 
         for merge_address in merge_addresses:
@@ -138,12 +139,12 @@ class KinkSorter():
 
         if self.database.merge_diff_list:
             print('Files to get:')
-            print('\t'+'\n\t'.join([o for o,n    in self.database.merge_diff_list]))
+            print('\t'+'\n\t'.join(self.database.merge_diff_list))
 
     def _move_movie(self, old_movie_path, new_movie_path):
         if re.match(r'https?://|ftps?://', old_movie_path):
             if self.settings.simulation:
-                self.database.add_to_merge_diff_list(old_movie_path, new_movie_path)
+                self.database.add_to_merge_diff_list(old_movie_path)
             else:
                 file_ = utils.get_remote_file(old_movie_path)
                 if file_ is not None and os.path.exists(file_):
@@ -151,7 +152,7 @@ class KinkSorter():
         else:
             if self.settings.simulation:
                 os.symlink(old_movie_path, new_movie_path)
-                self.database.add_to_merge_diff_list(old_movie_path, new_movie_path)
+                self.database.add_to_merge_diff_list(old_movie_path)
             else:
                 shutil.move(old_movie_path, new_movie_path)
 
