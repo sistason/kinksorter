@@ -15,8 +15,6 @@ class KinkSorter():
     settings = None
 
     def __init__(self, storage_root_path, settings):
-        logging.basicConfig(format='%(message)s', level=logging.INFO)
-
         self.storage_root_path = storage_root_path
         self._current_site_api = settings.apis.get('Default', None)
         self.settings = settings
@@ -218,7 +216,7 @@ if __name__ == '__main__':
     settings = utils.Settings(vars(args))
     m = KinkSorter(args.storage_root_path, settings)
 
-    logging.basicConfig(format='%(levelname)s:%(funcName)s:%(message)s',
+    logging.basicConfig(format='%(funcName)s: %(message)s',
                         level=logging.INFO)
     if args.revert:
         m.revert()
