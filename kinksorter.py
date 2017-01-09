@@ -27,7 +27,6 @@ class KinkSorter():
         self.database.read()
 
     def update_database(self, merge_addresses):
-        old_db_len_ = len(self.database.movies)
         self._scan_directory(self.storage_root_path, self.settings.RECURSION_DEPTH)
         self.database.own_movies = self.database.movies.copy()
         self.database.write()
@@ -36,7 +35,7 @@ class KinkSorter():
             self.scan_address(merge_address)
 
         new_db_len_ = len(self.database.movies)
-        logging.info('{} movies found, {} new ones'.format(new_db_len_, new_db_len_-old_db_len_))
+        logging.info('{} movies found, {} new ones'.format(new_db_len_, new_db_len_-len(self.database.own_movies)))
         try:
             self.database.update_all_movies()
         except KeyboardInterrupt as e:
