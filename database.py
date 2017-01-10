@@ -24,15 +24,14 @@ class TqdmLoggingHandler(logging.Handler):
             self.handleError(record)
 
 
-class Database():
-    _path = ''
-    movies = {} # filename:Movie(),
-    own_movies = {}
-    merge_diff_list = []
+class Database:
 
     def __init__(self, database_path, settings):
         self._path = database_path
         self._settings = settings
+        self.movies = {}  # filename:Movie(),
+        self.own_movies = {}
+        self.merge_diff_list = {}
 
     def add_movie(self, movie):
         if not self.check_movie_duplicates(movie):

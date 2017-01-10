@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 import subprocess
 import os
+import json
 
 
 class KinkAPI():
@@ -16,7 +17,10 @@ class KinkAPI():
 
     def __init__(self, template=None):
         logging.getLogger("requests").setLevel(logging.WARNING)
+
+        self._cookies = None
         self.shootid_template = template
+
         self.set_kink_headers()
 
     def set_kink_headers(self):
@@ -128,13 +132,26 @@ class KinkAPI():
 
         return properties
 
+    def get_shootid_through_metadata(self, file_path):
+        """ Works only on Kink.com movies from around 3500-4500 """
+        o = subprocess.run(['ffprobe', '-show_format', '-v', 'quiet', '-of', 'json', file_path], stdout=subprocess.PIPE)
+        try:
+            json_output = json.loads(o.stdout.decode())
+            title = json_output.get('format').get('tags').get('title')
+            return int(title.split('.')[0].split()[-1])
+        except (ValueError, IndexError, AttributeError, json.JSONDecodeError):
+            return 0
+
     def get_shootid_through_image_recognition(self, file_path):
+        """ Works only on Kink.com movies after ~ """
         capture = cv2.VideoCapture(file_path)
         frame_count = capture.get(cv2.CAP_PROP_FRAME_COUNT)
         if not frame_count:
+            logging.debug('No frames to recognize found for file "{}"'.format(file_path))
             return 0
         template = self.shootid_template
         if template is None:
+            logging.debug('No template to recognize shootids')
             return 0
         fps = capture.get(cv2.CAP_PROP_FPS)
         ret = capture.set(cv2.CAP_PROP_POS_FRAMES, frame_count - int(4 * fps))
@@ -145,6 +162,7 @@ class KinkAPI():
                 frame_list.append((frame_.max(), frame_))
 
         if not frame_list:
+            logging.debug('No frames readable in the last seconds of file "{}"'.format(file_path))
             return 0
         frame_list.sort(key=lambda f: f[0])
         best_frame = frame_list[-1][1]
@@ -156,14 +174,16 @@ class KinkAPI():
         result = cv2.matchTemplate(red_frame, template, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
         if max_val < 0.7:
+            logging.debug('Template for shootid doesn\'t match for file "{}"'.format(file_path))
             return 0
 
         template_height, template_width = template.shape
         shootid_crop = red_frame[max_loc[1]:max_loc[1] + template_height, max_loc[0] + template_width:]
 
         shootid = self.recognize_shootid(shootid_crop)
-        # if not shootid:
-        #     self.debug_frame(shootid_crop)
+        if not shootid:
+            logging.debug('Tesseract couldn\'t recognize digits for file "{}"'.format(file_path))
+            self.debug_frame(shootid_crop)
 
         return shootid
 

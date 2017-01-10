@@ -31,8 +31,6 @@ class KinksorterShould(unittest.TestCase):
         self.file3 = tempfile.NamedTemporaryFile(dir=self.dir3.name, delete=False)
 
     def test_scan(self):
-        # print(len(self.kinksorter.database.movies))
-        # TODO: understand why unittest does only one setup, but claims to do all seperate
         self.kinksorter.scan_address(self.kinksorter.storage_root_path)
         assert_that(len(self.kinksorter.database.movies), equal_to(3))
 

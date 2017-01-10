@@ -12,7 +12,6 @@ import utils
 
 
 class KinkSorter():
-    settings = None
 
     def __init__(self, storage_root_path, settings):
         self.storage_root_path = storage_root_path
@@ -109,8 +108,11 @@ class KinkSorter():
             while os.path.exists(new_storage_path):
                 p_, cnt_ = new_storage_path.rsplit('_',1)
                 new_storage_path = p_ + '_' + str(int(cnt_)+1) if cnt_.isdigit() else p_ + '_0'
+
         if not os.path.exists(new_storage_path):
             os.mkdir(new_storage_path)
+
+        new_storage_database = Database(os.path.join(new_storage_path, ".kinksorter_db"), self.settings)
 
         for old_movie_path, movie in self.database.movies.items():
             if not (os.path.exists(old_movie_path) or os.access(old_movie_path, os.R_OK)):
@@ -133,6 +135,12 @@ class KinkSorter():
                 os.remove(new_movie_path)
 
             self._move_movie(old_movie_path, new_movie_path)
+
+            new_movie = Movie(new_movie_path, None, properties=movie.properties)
+            new_storage_database.add_movie(new_movie)
+
+        new_storage_database.write()
+        del new_storage_database
 
         if self.database.merge_diff_list:
             print('Files to get:')
