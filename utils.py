@@ -9,7 +9,7 @@ from ftplib import FTP
 from api import KinkAPI
 
 
-class Settings():
+class Settings:
     RECURSION_DEPTH = 5
     interactive = False
     simulation = True
@@ -18,16 +18,15 @@ class Settings():
     def __init__(self, args):
         self.interactive = args.get('interactive', False)
         self.simulation = not args.get('tested', False)
-        kink_template = self._read_shootid_template(args.get('shootid_template', None))
-        self.apis[KinkAPI.name] = KinkAPI(kink_template)
+
+        kink_template_ = None
+        template_ = args.get('shootid_template', None)
+        if not template_ or not os.path.exists(template_):
+            kink_template_ = imread(template_, 0)
+        self.apis[KinkAPI.name] = KinkAPI(kink_template_)
         if self.interactive:
             # Default to most probable API only if interactive, so the results are validated by user
             self.apis['Default'] = self.apis[KinkAPI.name]
-
-    def _read_shootid_template(self, template):
-        if not template or not os.path.exists(template):
-            return
-        return imread(template, 0)
 
 
 def get_correct_api(apis, dir_name):
@@ -59,13 +58,13 @@ def get_ftp_listing(address):
             ftp_server.login(user, password)
 
         listing = {}
-        _scan_ftp(ftp_server, path_, listing, 5)
+        _search_ftp_server(ftp_server, path_, listing, 5)
         return listing
     else:
         print('ftps not (yet?) implemented!')
 
 
-def _scan_ftp(ftp_server, path_, listing, recursion_depth):
+def _search_ftp_server(ftp_server, path_, listing, recursion_depth):
     # TODO: Test
     recursion_depth -= 1
     ftp_server.cwd(path_)
@@ -73,7 +72,7 @@ def _scan_ftp(ftp_server, path_, listing, recursion_depth):
         print(path_, name, facts)
         if "type" in facts and facts["type"] == 'dir':
             if recursion_depth > 0:
-                _scan_ftp(ftp_server, os.path.join(path_, name), recursion_depth)
+                _search_ftp_server(ftp_server, os.path.join(path_, name), recursion_depth)
         else:
             listing[path_] = (name, facts)
 
@@ -91,8 +90,10 @@ def get_remote_file(address):
 
 
 def _get_http_file(address):
-    ...
+    # TODO
+    return None
 
 
 def _get_ftp_file(address):
-    ...
+    # TODO
+    return None

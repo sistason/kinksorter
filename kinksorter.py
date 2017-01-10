@@ -11,13 +11,13 @@ from movie import Movie
 import utils
 
 
-class KinkSorter():
+class KinkSorter:
 
-    def __init__(self, storage_root_path, settings):
+    def __init__(self, storage_root_path, settings_):
         self.storage_root_path = storage_root_path
-        self._current_site_api = settings.apis.get('Default', None)
-        self.settings = settings
-        Movie.settings = settings
+        self._current_site_api = settings_.apis.get('Default', None)
+        self.settings = settings_
+        Movie.settings = settings_
 
         database_path = os.path.join(self.storage_root_path, '.kinksorter_db')
         self.database = Database(database_path, self.settings)
@@ -35,7 +35,7 @@ class KinkSorter():
         logging.info('{} movies found, {} new ones'.format(new_db_len_, new_db_len_-len(self.database.own_movies)))
         try:
             self.database.update_all_movies()
-        except KeyboardInterrupt as e:
+        except KeyboardInterrupt:
             logging.info('Saving Database and exiting...')
             self.database.write()
 
@@ -106,7 +106,7 @@ class KinkSorter():
         if self.settings.simulation:
             new_storage_path += '_0'
             while os.path.exists(new_storage_path):
-                p_, cnt_ = new_storage_path.rsplit('_',1)
+                p_, cnt_ = new_storage_path.rsplit('_', 1)
                 new_storage_path = p_ + '_' + str(int(cnt_)+1) if cnt_.isdigit() else p_ + '_0'
 
         if not os.path.exists(new_storage_path):

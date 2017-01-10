@@ -9,7 +9,7 @@ import os
 import json
 
 
-class KinkAPI():
+class KinkAPI:
     _cookies = None
     _site_capabilities = None
     _headers = {}
@@ -30,7 +30,7 @@ class KinkAPI():
     def set_kink_cookies(self):
         _ret = requests.get("http://www.kink.com")
         _cookies = _ret.cookies
-        _cookies['viewing-preferences']='straight,gay'
+        _cookies['viewing-preferences'] = 'straight,gay'
         self._cookies = _cookies
 
     def make_request_get(self, url, data=None):
@@ -42,7 +42,7 @@ class KinkAPI():
         retries = 3
         while not ret and retries > 0:
             try:
-                r_ = requests.get(url, data=data, cookies = self._cookies, headers = self._headers, timeout = 2)
+                r_ = requests.get(url, data=data, cookies=self._cookies, headers=self._headers, timeout=2)
                 ret = r_.text
             except requests.Timeout:
                 retries -= 1
@@ -63,7 +63,7 @@ class KinkAPI():
             site_lists = channels.find_all('div', attrs={'class': 'site-list'})
             for site_list_ in site_lists:
                 for site_ in site_list_.find_all('a'):
-                    if site_.attrs.get('href','').startswith('/channel/'):
+                    if site_.attrs.get('href', '').startswith('/channel/'):
                         channel_ = site_.text.strip()
                         channel_names.append(channel_)
                         channel_names.append(''.join([c[0] for c in channel_.split()]))
@@ -74,44 +74,42 @@ class KinkAPI():
     def query_for_name(self, name):
         # TODO: Not (yet) possible without a cache/list
         properties = {}
-        ...
         return properties
 
     def query_for_date(self, date):
         # TODO: Not (yet) possible without a cache/list
         properties = {}
-        ...
         return properties
 
     def query_for_id(self, kink_id):
-        properties = {"id":kink_id}
+        properties = {"id": kink_id}
         content = self.make_request_get("http://kink.com/shoot/{}".format(kink_id))
         if content:
             _bs = bs4.BeautifulSoup(content, "html5lib")
             if _bs.title.text:
                 try:
                     # Get link of the site from a.href
-                    site_logo_ = _bs.body.find('div', attrs={"class":"column shoot-logo"}) # current-page
+                    site_logo_ = _bs.body.find('div', attrs={"class": "column shoot-logo"})
                     site_link_ = site_logo_.a.attrs.get('href', '')
                     # Get verbose name from the sitelist
-                    site_list_ = _bs.body.find('div', attrs={'class':'site-footer'})
+                    site_list_ = _bs.body.find('div', attrs={'class': 'site-footer'})
                     site_name_ = site_list_.find('a', href=site_link_).text.strip()
                     properties['site'] = site_name_
                 except Exception as e:
                     logging.warning('Could not parse site, exception was: {}'.format(e))
                     logging.warning(_bs.body)
 
-                info = _bs.body.find('div', attrs={'class':'shoot-info'})
+                info = _bs.body.find('div', attrs={'class': 'shoot-info'})
                 if info:
                     try:
                         title_ = info.find(attrs={'class', 'shoot-title'})
-                        title_ = title_.renderContents().decode().replace('<br/>', ' - ').replace('  ',' ')
+                        title_ = title_.renderContents().decode().replace('<br/>', ' - ').replace('  ', ' ')
                         properties['title'] = title_
                     except Exception as e:
                         logging.warning('Could not parse title, exception was: {}'.format(e))
 
                     try:
-                        performers_ = info.find(attrs={'class':'starring'})
+                        performers_ = info.find(attrs={'class': 'starring'})
                         performers_ = [i.text for i in performers_.find_all('a')]
                         properties['performers'] = performers_
                     except Exception as e:
@@ -132,7 +130,8 @@ class KinkAPI():
 
         return properties
 
-    def get_shootid_through_metadata(self, file_path):
+    @staticmethod
+    def get_shootid_through_metadata(file_path):
         """ Works only on Kink.com movies from around 3500-4500 """
         o = subprocess.run(['ffprobe', '-show_format', '-v', 'quiet', '-of', 'json', file_path], stdout=subprocess.PIPE)
         try:
@@ -187,7 +186,8 @@ class KinkAPI():
 
         return shootid
 
-    def recognize_shootid(self, shootid_img):
+    @staticmethod
+    def recognize_shootid(shootid_img):
         # FIXME: filepath-independence by piping the image?
         tmp_image = '/tmp/kinksorter_shootid.jpeg'
         cv2.imwrite(tmp_image, shootid_img)
@@ -196,6 +196,7 @@ class KinkAPI():
             return int(output.stdout)
         return 0
 
-    def debug_frame(self, frame):
+    @staticmethod
+    def debug_frame(frame):
         cv2.imwrite('/tmp/test.jpeg', frame)
         os.system('eog /tmp/test.jpeg 2>/dev/null')

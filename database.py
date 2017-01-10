@@ -31,7 +31,7 @@ class Database:
         self._settings = settings
         self.movies = {}  # filename:Movie(),
         self.own_movies = {}
-        self.merge_diff_list = {}
+        self.merge_diff_list = []
 
     def add_movie(self, movie):
         if not self.check_movie_duplicates(movie):
@@ -87,8 +87,8 @@ class Database:
             _movies = OrderedDict()
             for file_path, properties in _decoded.items():
                 # Date was not json serializable, format from timestamp
-                properties['date'] = datetime.date.fromtimestamp(int(properties.get('date',0)))
-                api = self._settings.apis.get(properties.pop('api',None), None)
+                properties['date'] = datetime.date.fromtimestamp(int(properties.get('date', 0)))
+                api = self._settings.apis.get(properties.pop('api', None), None)
                 m_ = Movie(file_path, api, properties=properties)
                 _movies[file_path] = m_
 
