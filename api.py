@@ -191,12 +191,23 @@ class KinkAPI:
         # FIXME: filepath-independence by piping the image?
         tmp_image = '/tmp/kinksorter_shootid.jpeg'
         cv2.imwrite(tmp_image, shootid_img)
-        output = subprocess.run(['tesseract', tmp_image, 'stdout', 'digits'], stdout=subprocess.PIPE)
-        if output.stdout is not None and output.stdout.strip().isdigit():
-            return int(output.stdout)
+        out = subprocess.run(['tesseract', tmp_image, 'stdout', 'digits'], stdout=subprocess.PIPE)
+        output = out.stdout.decode()
+        if ' ' in output:
+            output = output.replace(' ', '')
+        if output is not None and output.strip().isdigit():
+            return int(output)
         return 0
 
     @staticmethod
     def debug_frame(frame):
         cv2.imwrite('/tmp/test.jpeg', frame)
         os.system('eog /tmp/test.jpeg 2>/dev/null')
+
+if __name__ == '__main__':
+    import sys
+    movie = sys.argv[1]
+    temp_ = cv2.imread('/media/data/owncloud/leben/projects/skriptecke/kinksorter/templates/shootid.jpeg', 0)
+    api = KinkAPI(template=temp_)
+
+    print(api.get_shootid_through_image_recognition(movie))
