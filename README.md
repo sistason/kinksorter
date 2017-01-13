@@ -32,9 +32,9 @@ from the database.)
 # Installation
 1. Install Dependencies:
   - python >3.3
-  - python3-tqdm
   - python3-opencv
-  - tesseract
+  - tesseract  
+  - python3-tqdm
   - python3-fuzzywuzzy
   - python-Levenshtein
 
@@ -55,5 +55,5 @@ python3 kinksorter.py $MainDirectory $MergeTarges
  actually move/download files to their new locations.
 - -r: Revert a new location back to it's original state.
  Original is what paths are in the database of $MainDirectory.
-- -s: Give the path of the image template for 
+- -s: Give the directory of the shootid templates for 
 OpenCV Kink.com recognition.
