@@ -31,12 +31,12 @@ from the database.)
 
 # Installation
 1. Install Dependencies:
-- python >3.3
-- python3-tqdm
-- python3-opencv
-- tesseract
-- python3-fuzzywuzzy
-- python-Levenshtein
+  - python >3.3
+  - python3-tqdm
+  - python3-opencv
+  - tesseract
+  - python3-fuzzywuzzy
+  - python-Levenshtein
 
 2. git clone https://github.com/sistason/kinksorter
 

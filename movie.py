@@ -6,12 +6,11 @@ import os
 
 class Movie:
     UNLIKELY_NUMBERS = {'quality': [360, 480, 720, 1080, 1440, 2160],
-                        'date': list(range(1999, 2030))+list(range(0, 32))}
+                        'date': list(range(1970, 2030))}
     settings = None
 
     def __init__(self, file_path, api, properties=None):
         self.file_path = file_path
-        self._unlikely_shootid_quality_re = re.compile('|'.join(str(i) + 'p' for i in self.UNLIKELY_NUMBERS['quality']))
         # Filter out dates like 091224 or (20)150101
         self._unlikely_shootid_date_re = re.compile('([01]\d)({})({})'.format(
             '|'.join(['{:02}'.format(i) for i in range(1, 13)]),
@@ -34,35 +33,56 @@ class Movie:
     def update_details(self):
         if self.api is None:
             return
-        shootids = self.get_shootids(self.base_name)
-        if shootids:
-            if len(shootids) > 1:
-                shootid = self.interactive_choose_shootid(shootids)
+        shootid_nr = 0
+        shootids_nr = self.get_shootids(self.base_name)
+        shootid_cv = self.api.get_shootid_through_image_recognition(self.file_path)
+        if shootids_nr:
+            if len(shootids_nr) > 1:
+                shootid_nr = self.interactive_choose_shootid(shootids_nr)
             else:
-                shootid = shootids[0]
-        else:
-            shootid = self.api.get_shootid_through_image_recognition(self.file_path)
+                shootid_nr = shootids_nr[0]
 
-        if shootid:
-            result = self.api.query_for_id(shootid)
+        if shootid_nr == shootid_cv or shootid_cv:
+            # Clear solution
+            result = self.api.query_for_id(shootid_nr)
             if self.interactive_confirm(result):
                 self.properties.update(result)
-        else:
-            t_ = re.search(r"\d{4}\W\d{1,2}\W\d{1,2}", self.base_name)
-            likely_date = t_.group(0) if t_ else ''
-            self.properties.update(self.interactive_query(likely_date))
+                return
+        elif shootid_nr:
+            # No image recognition, but a number is found => pre shootid-tagging in the video
+            if shootid_nr < 8000:
+                result = self.api.query_for_id(shootid_nr)
+                if self.interactive_confirm(result):
+                    self.properties.update(result)
+                    return
+            else:
+                logging.info('File "{}" most likely has the wrong API or is (mildly) corrupted'.format(self.base_name))
+
+        t_ = re.search(r"\d{4}\W\d{1,2}\W\d{1,2}", self.base_name)
+        likely_date = t_.group(0) if t_ else ''
+        result = self.interactive_query(likely_date)
+        self.properties.update(result)
 
     def get_shootids(self, base_name):
-        base_name = re.sub(self._unlikely_shootid_quality_re, '', base_name)
         search_shootid = []
 
-        # FIXME: \d{2,6} scrambles numbers, (?:\D|^)(\d{2,6})(?:\D|$) has problems
-        for k in re.findall(r"\d+", base_name):
-            if 2 <= len(k) <= 6 and int(k) not in self.UNLIKELY_NUMBERS['date']:
-                if self._unlikely_shootid_date_re.search(k):
-                    logging.debug('"{}": Most likely no shootid, but a date. Skipping...'.format(k))
-                    continue
-                search_shootid.append(int(k))
+        # \D does not match ^|$, so we pad it with something irrelevant
+        for pre_, k, post_ in re.findall(r"(\D)(\d{2,6})(\D)", '%'+base_name+'%'):
+            shootid = int(k)
+            if shootid in self.UNLIKELY_NUMBERS['date']:
+                logging.debug('Most likely no shootid ({}), but a year. Skipping...'.format(k))
+                continue
+            if self._unlikely_shootid_date_re.search(k):
+                logging.debug('Most likely no shootid ({}), but a date. Skipping...'.format(k))
+                continue
+            if shootid < 200:
+                logging.debug('Most likely no shootid ({}), but a day/month/age/number. Skipping...'.format(k))
+                continue
+            if shootid in self.UNLIKELY_NUMBERS['quality'] and (pre_ != '(' or post_ != ')'):
+                logging.debug('Most likely no shootid ({}{}{}), but a quality. Skipping...'.format(pre_, k, post_))
+                continue
+
+            search_shootid.append(shootid)
 
         if len(search_shootid) > 1:
             logging.info('Multiple Shoot IDs found, choose one')

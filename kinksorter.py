@@ -35,9 +35,10 @@ class KinkSorter:
         logging.info('{} movies found, {} new ones'.format(new_db_len_, new_db_len_-len(self.database.own_movies)))
         try:
             self.database.update_all_movies()
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as e:
             logging.info('Saving Database and exiting...')
             self.database.write()
+            raise e
 
         self.database.write()
 
@@ -216,8 +217,8 @@ if __name__ == '__main__':
                            help="Confirm each action and query fails manually")
     argparser.add_argument('-r', '--revert', action="store_true",
                            help="Revert the sorted movies back to their original state in the database")
-    argparser.add_argument('-s', '--shootid_template', default='templates/shootid.jpeg',
-                           help="Set the template-image for finding the Shoot ID")
+    argparser.add_argument('-s', '--shootid_template_dir', default='templates',
+                           help="Set the template-directory for finding the Shoot ID")
 
     args = argparser.parse_args()
 
@@ -225,7 +226,7 @@ if __name__ == '__main__':
     m = KinkSorter(args.storage_root_path, settings)
 
     logging.basicConfig(format='%(funcName)s: %(message)s',
-                        level=logging.INFO)
+                        level=logging.DEBUG)
     if args.revert:
         m.revert()
     else:

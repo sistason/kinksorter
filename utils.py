@@ -19,11 +19,18 @@ class Settings:
         self.interactive = args.get('interactive', False)
         self.simulation = not args.get('tested', False)
 
-        kink_template_ = None
-        template_ = args.get('shootid_template', None)
-        if not template_ or not os.path.exists(template_):
-            kink_template_ = imread(template_, 0)
-        self.apis[KinkAPI.name] = KinkAPI(kink_template_)
+        kink_templates_sorted = []
+        template_dir = args.get('shootid_template_dir', None)
+        if template_dir and os.path.exists(template_dir):
+            kink_templates_ = []
+            for template_ in os.scandir(template_dir):
+                if template_.name.endswith('.jpeg'):
+                    kink_templates_.append(template_.path)
+
+            for template_ in sorted(kink_templates_):
+                kink_templates_sorted.append(imread(template_, 0))
+
+        self.apis[KinkAPI.name] = KinkAPI(kink_templates_sorted)
         if self.interactive:
             # Default to most probable API only if interactive, so the results are validated by user
             self.apis['Default'] = self.apis[KinkAPI.name]
