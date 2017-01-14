@@ -42,7 +42,7 @@ class Movie:
             else:
                 shootid_nr = shootids_nr[0]
 
-        if shootid_nr == shootid_cv or shootid_cv:
+        if shootid_nr == shootid_cv or shootid_cv > 0:
             # Clear solution
             result = self.api.query_for_id(shootid_cv)
             if self.interactive_confirm(result):
@@ -50,7 +50,8 @@ class Movie:
                 return
         elif shootid_nr:
             # No image recognition, but a number is found => pre shootid-tagging in the video
-            if shootid_nr < 8000:
+            # Image recognition yields "-1" (error in video file), so trust shootid
+            if shootid_nr < 8000 or shootid_cv == -1:
                 result = self.api.query_for_id(shootid_nr)
                 if self.interactive_confirm(result):
                     self.properties.update(result)

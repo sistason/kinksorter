@@ -150,11 +150,11 @@ class KinkAPI:
         frame_count = capture.get(cv2.CAP_PROP_FRAME_COUNT)
         if not frame_count:
             logging.debug('No frames to recognize found for file "{}"'.format(file_path))
-            return 0
+            return -1
         template = self.shootid_templates[0] if self.shootid_templates else None
         if template is None:
             logging.debug('No template to recognize shootids')
-            return 0
+            return -1
         fps = capture.get(cv2.CAP_PROP_FPS)
         ret = capture.set(cv2.CAP_PROP_POS_FRAMES, frame_count - int(4 * fps))
         frame_list = []
@@ -162,7 +162,7 @@ class KinkAPI:
         # capture is sometimes not able to read at the end, so read the last possible frame
         current_frame = capture.get(cv2.CAP_PROP_POS_FRAMES)
         if current_frame != frame_count:
-            capture.set(cv2.CAP_PROP_POS_FRAMES, current_frame-1)
+            ret = capture.set(cv2.CAP_PROP_POS_FRAMES, current_frame-1)
 
         while ret:
             ret, frame_ = capture.read()
@@ -171,7 +171,7 @@ class KinkAPI:
 
         if not frame_list:
             logging.debug('No frames readable in the last seconds of file "{}"'.format(file_path))
-            return 0
+            return -1
         frame_list.sort(key=lambda f: f[0])
         best_frame = frame_list[-1][1]
 
