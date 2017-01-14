@@ -44,7 +44,7 @@ class Movie:
 
         if shootid_nr == shootid_cv or shootid_cv:
             # Clear solution
-            result = self.api.query_for_id(shootid_nr)
+            result = self.api.query_for_id(shootid_cv)
             if self.interactive_confirm(result):
                 self.properties.update(result)
                 return
