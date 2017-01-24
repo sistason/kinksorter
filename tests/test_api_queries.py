@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-import unittest
 import socket
-from hamcrest import *
+import unittest
 from datetime import date
 
-from api import KinkAPI
+from apis.kink_api import KinkAPI
+from hamcrest import *
 
 
 class KinkAPIShould(unittest.TestCase):
@@ -18,8 +18,40 @@ class KinkAPIShould(unittest.TestCase):
             self.skipTest('No Internet')
         self.api = KinkAPI()
 
-    def test_parsing(self):
-        properties = self.api.query_for_id(7675)
+    def test_direct_parsing(self):
+        properties = self.api.direct_query_for_id(7675)
+        self._validate(properties)
+
+    def test_api_parsing(self):
+        properties = self.api.api_query_for_id(7675)
+        self._validate(properties)
+
+    def test_cache_parsing(self):
+        import time
+        self.api.use_cache()
+        while self.api._cache_updating:
+            time.sleep(1)
+
+        properties = self.api.cached_query_for_id(7675)
+        self._validate(properties)
+
+    def test_date_parsing(self):
+        date_ = date(2009, 12, 17)
+        properties = self.api.api_query_for_date(date_.strftime('%Y-%m-%d'))
+        assert_that(len(properties), equal_to(2))
+        properties = [p for p in properties if p.get('shootid', 0) == 7675]
+        self._validate(properties)
+
+    def test_name_parsing(self):
+        properties = self.api.api_query_for_title("Former collegiate athlete upside down")
+        self._validate(properties)
+
+    @staticmethod
+    def _validate(properties):
+        assert_that(len(properties), equal_to(1))
+        properties = properties[0]
+        assert_that(properties.get('shootid', 0),
+                    equal_to(7675))
         assert_that(properties.get('title', ''),
                     equal_to('Holly Heart - Former collegiate athlete upside down, butt plugged, and made to cum!'))
         assert_that(properties.get('date', None),
@@ -28,6 +60,7 @@ class KinkAPIShould(unittest.TestCase):
                     contains('Holly Heart'))
         assert_that(properties.get('site', ''),
                     equal_to('Device Bondage'))
+
 
 suite = unittest.TestLoader().loadTestsFromTestCase(KinkAPIShould)
 

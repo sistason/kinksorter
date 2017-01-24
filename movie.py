@@ -24,7 +24,7 @@ class Movie:
 
         if properties is None:
             properties = {}
-        self.properties = {'title': '', 'performers': [], 'date': datetime.date(1970, 1, 1), 'site': '', 'id': 0}
+        self.properties = {'title': '', 'performers': [], 'date': datetime.date(1970, 1, 1), 'site': '', 'shootid': 0}
         self.properties.update(properties)
 
         if self.settings is None:
@@ -44,16 +44,18 @@ class Movie:
 
         if shootid_nr == shootid_cv or shootid_cv > 0:
             # Clear solution
-            result = self.api.query_for_id(shootid_cv)
-            if self.interactive_confirm(result):
+            results = self.api.query_for_id(shootid_cv)
+            result = self.interactive_confirm(results)
+            if result:
                 self.properties.update(result)
                 return
         elif shootid_nr:
             # No image recognition, but a number is found => pre shootid-tagging in the video
             # Image recognition yields "-1" (error in video file), so trust shootid
             if shootid_nr < 8000 or shootid_cv == -1:
-                result = self.api.query_for_id(shootid_nr)
-                if self.interactive_confirm(result):
+                results = self.api.query_for_id(shootid_nr)
+                result = self.interactive_confirm(results)
+                if result:
                     self.properties.update(result)
                     return
             else:
@@ -105,8 +107,9 @@ class Movie:
                 if not id_:
                     print('"{}" was no number, please repeat!'.format(user_input[1:]))
                     continue
-                result = self.api.query_for_id(id_)
-                if self.interactive_confirm(result):
+                results = self.api.query_for_id(id_)
+                result = self.interactive_confirm(results)
+                if result:
                     return result
             elif user_input.startswith('d'):
                 date_string = user_input[1:]
@@ -116,20 +119,37 @@ class Movie:
                 except (ValueError, AttributeError):
                     print('Could not parse date "{}".'.format(date_string))
                     continue
-
-                print('Sadly, no API is yet available to search for a date :(')
-                continue
+                results = self.api.query_for_date(date_)
+                result = self.interactive_confirm(results)
+                if result:
+                    return result
             elif user_input:
                 name_ = user_input
-                print('Sadly, no API is yet available to search for a name :(')
-                continue
+                results = self.api.query_for_name(name_)
+                result = self.interactive_confirm(results)
+                if result:
+                    return result
             else:
                 print('Leaving movie "{}" untagged.'.format(self.base_name))
                 continue
 
         return {}
 
-    def interactive_confirm(self, result):
+    def interactive_confirm(self, results):
+        if self.settings.interactive and len(results) != 1:
+            print('Possible matches:\n')
+            print('\t0: None of the below')
+            for i, result in enumerate(results):
+                print('\t{}: {}'.format(i+1, format_properties(result)))
+            selection = input('Select the correct number')
+            result = results[selection+1] if selection != 0 else {}
+        else:
+            result = results[0]
+
+        if self._interactive_confirm_helper(result):
+            return result
+
+    def _interactive_confirm_helper(self, result):
         logging.info('\told: {}{}'.format(self.base_name, self.extension))
         logging.info('\tnew: {}'.format(format_properties(result)))
         answer = input('Is this okay? Y, n?') if self.settings.interactive else 'Y'
@@ -156,7 +176,7 @@ class Movie:
                 and self.properties.get('performers', []) == other.properties.get('performers', [])
                 and self.properties.get('date', None) == other.properties.get('date', None)
                 and self.properties.get('site', '') == other.properties.get('site', '')
-                and self.properties.get('id', 0) == other.properties.get('id', 0))
+                and self.properties.get('shootid', 0) == other.properties.get('shootid', 0))
 
     def __str__(self):
         return format_movie(self)
@@ -172,12 +192,12 @@ def format_movie(movie):
     if not movie_is_filled(movie):
         ret = movie.base_name + ' <incomplete_tagged> | '
 
-    ret += '{site} - {date} - {title} [{perfs}] ({id}){ext}'.format(
+    ret += '{site} - {date} - {title} [{perfs}] ({shootid}){ext}'.format(
         site=movie.properties.get('site', '').replace(' ', ''),
         date=movie.properties.get('date', ''),
         title=movie.properties.get('title', ''),
         perfs=', '.join(movie.properties.get('performers', '')),
-        id=movie.properties.get('id', ''),
+        shootid=movie.properties.get('shootid', ''),
         ext=movie.extension)
     return ret
 
@@ -199,7 +219,7 @@ def movie_is_filled(movie):
                 and movie.properties.get('performers', False)
                 and movie.properties.get('site', False)
                 and 'date' in movie.properties and int(movie.properties['date'].strftime("%s")) > 0
-                and movie.properties.get('id', 0) > 0)
+                and movie.properties.get('shootid', 0) > 0)
 
 
 def movie_is_empty(movie):
@@ -207,4 +227,4 @@ def movie_is_empty(movie):
                 and not movie.properties.get('performers', True)
                 and not movie.properties.get('site', True)
                 and ('date' not in movie.properties or int(movie.properties['date'].strftime("%s")) <= 0)
-                and movie.properties.get('id', 0) == 0)
+                and movie.properties.get('shootid', 0) == 0)

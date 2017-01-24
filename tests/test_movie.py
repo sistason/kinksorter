@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-import unittest
-from hamcrest import *
 import tempfile
+import unittest
 
+from apis.kink_api import KinkAPI
+from hamcrest import *
 from movie import Movie, movie_is_empty, movie_is_filled
-from api import KinkAPI
 from utils import Settings
 
 
@@ -14,10 +14,10 @@ class MovieShould(unittest.TestCase):
     def setUp(self):
         Movie.settings = Settings({})
         self.temp_movie_file = tempfile.NamedTemporaryFile()
-        self.movie = Movie(self.temp_movie_file.name, KinkAPI(), {'id': "12345"})
+        self.movie = Movie(self.temp_movie_file.name, KinkAPI(), {'shootid': "12345"})
 
     def test_properties_stay_unmodified(self):
-        assert_that(self.movie.properties.get('id'), equal_to('12345'))
+        assert_that(self.movie.properties.get('shootid'), equal_to('12345'))
 
     def test_recognize_kinkid(self):
         assert_that(self.movie.get_shootids('12345'), contains(12345))
@@ -32,7 +32,7 @@ class MovieShould(unittest.TestCase):
         assert_that(self.movie.get_shootids('091224'), equal_to([]))
 
     def test_logic(self):
-        self.movie.properties['id'] = 0
+        self.movie.properties['shootid'] = 0
         assert_that(movie_is_empty(self.movie), equal_to(True))
         assert_that(movie_is_filled(self.movie), equal_to(False))
         assert_that(self.movie == self.movie, equal_to(True))

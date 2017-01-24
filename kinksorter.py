@@ -32,7 +32,13 @@ class KinkSorter:
             self.scan_address(merge_address)
 
         new_db_len_ = len(self.database.movies)
-        logging.info('{} movies found, {} new ones'.format(new_db_len_, new_db_len_-len(self.database.own_movies)))
+        new_movies = new_db_len_-len(self.database.own_movies)
+        logging.info('{} movies found, {} new ones'.format(new_db_len_, new_movies))
+
+        if new_movies > 50:
+            for api in self.settings.apis.values():
+                api.use_cache()
+
         try:
             self.database.update_all_movies()
         except KeyboardInterrupt as e:
@@ -219,6 +225,8 @@ if __name__ == '__main__':
                            help="Revert the sorted movies back to their original state in the database")
     argparser.add_argument('-s', '--shootid_template_dir', default='templates',
                            help="Set the template-directory for finding the Shoot ID")
+    argparser.add_argument('-a', '--use_direct', action='store_true',
+                           help="Query the sites directly instead of using the API")
 
     args = argparser.parse_args()
 

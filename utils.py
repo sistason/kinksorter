@@ -1,12 +1,11 @@
-import os
 import logging
+import os
 import re
-
 from cv2 import imread
-from fuzzywuzzy import fuzz
 from ftplib import FTP
 
-from api import KinkAPI
+from apis.kink_api import KinkAPI
+from fuzzywuzzy import fuzz
 
 
 class Settings:
@@ -18,6 +17,7 @@ class Settings:
     def __init__(self, args):
         self.interactive = args.get('interactive', False)
         self.simulation = not args.get('tested', False)
+        use_api = args.get('use_direct', False)
 
         kink_templates_sorted = []
         template_dir = args.get('shootid_template_dir', None)
@@ -30,7 +30,7 @@ class Settings:
             for template_ in sorted(kink_templates_):
                 kink_templates_sorted.append(imread(template_, 0))
 
-        self.apis[KinkAPI.name] = KinkAPI(kink_templates_sorted)
+        self.apis[KinkAPI.name] = KinkAPI(kink_templates_sorted, use_api=use_api)
         if self.interactive:
             # Default to most probable API only if interactive, so the results are validated by user
             self.apis['Default'] = self.apis[KinkAPI.name]

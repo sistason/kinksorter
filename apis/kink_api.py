@@ -7,56 +7,37 @@ import numpy as np
 import subprocess
 import os
 import json
+import re
 
 
-class KinkAPI:
-    _cookies = None
-    _site_capabilities = None
-    _headers = {}
+from apis.base_api import BaseAPI
+
+
+class KinkAPI(BaseAPI):
     name = 'Kink.com'
+    base_url = 'https://www.kink.com'
+    api_url = 'https://www.kinkyapi.site/kinkcom'
 
     def __init__(self, templates=None):
-        logging.getLogger("requests").setLevel(logging.WARNING)
+        super().__init__()
 
-        self._cookies = None
         self.shootid_templates = templates
 
-        self.set_kink_headers()
+    def set_cookies(self):
+        if self._use_api:
+            return
 
-    def set_kink_headers(self):
-        # TODO: randomized user-agent?
-        self._headers = {'Accept-Language': 'en-US,en;q=0.5'}
-
-    def set_kink_cookies(self):
-        _ret = requests.get("http://www.kink.com")
+        _ret = requests.get(self.base_url)
         _cookies = _ret.cookies
         _cookies['viewing-preferences'] = 'straight,gay'
         self._cookies = _cookies
-
-    def make_request_get(self, url, data=None):
-        if data is None:
-            data = {}
-        if not self._cookies:
-            self.set_kink_cookies()
-        ret = ''
-        retries = 3
-        while not ret and retries > 0:
-            try:
-                r_ = requests.get(url, data=data, cookies=self._cookies, headers=self._headers, timeout=2)
-                ret = r_.text
-            except requests.Timeout:
-                retries -= 1
-            except Exception as e:
-                logging.debug('Caught Exception "{}" while making a get-request to "{}"'.format(e, url))
-                break
-        return ret
 
     def get_site_responsibilities(self):
         if self._site_capabilities is not None:
             return self._site_capabilities
 
         channel_names = []
-        content = self.make_request_get("http://kink.com/channels")
+        content = self.make_request_get(self.base_url+"/channels")
         soup = bs4.BeautifulSoup(content, 'html5lib')
         channels = soup.body.find('div', id='footer')
         if channels:
@@ -71,25 +52,59 @@ class KinkAPI:
             self._site_capabilities = channel_names
         return channel_names
 
-    def query_for_name(self, name):
-        # TODO: Not (yet) possible without a cache/list
-        properties = {}
-        return properties
+    def _update_cache(self):
+        shoots = self.make_request_get(self.api_url + '/dump_shoots')
+        models = self.make_request_get(self.api_url + '/dump_models')
 
-    def query_for_date(self, date):
-        # TODO: Not (yet) possible without a cache/list
-        properties = {}
-        return properties
+        shoots_j = self._to_json(shoots)
+        models_j = self._to_json(models)
 
-    def query_for_id(self, kink_id):
-        properties = {"id": kink_id}
+        self._cache = {'shoots': shoots_j.get('results', []), 'models': models_j.get('results', [])}
+        self._cache_updating = False
+
+    def cached_query_for_id(self, kink_id):
+        shoots = self._cache.get('shoots', [])
+        for s in shoots:
+            if s.get('shootid', 0) == kink_id:
+                shoot = s
+                break
+        else:
+            return []
+
+        return [self._api_result_to_properties(shoot)]
+
+    def api_query_for_id(self, kink_id):
+        shoots = self.make_request_get(self.api_url + '/shoot/{}'.format(kink_id))
+        shoots_j = self._to_json(shoots)
+
+        return self._api_to_properties(shoots_j)
+
+    def _api_to_properties(self, json_response):
+        if json_response.get('errors', True):
+            return []
+
+        return [self._api_result_to_properties(r) for r in json_response.get('results', [])]
+
+    @staticmethod
+    def _api_result_to_properties(json_result):
+        return {'shootid': int(json_result.get('shootid', 0)),
+                'exists': json_result.get('exists', False),
+                'site': json_result.get('site', {}).get('name', None),
+                'title': json_result.get('title', None),
+                'performers': [i.get('name', '') for i in json_result.get('performers', [])],
+                'date': datetime.date.fromtimestamp(int(json_result.get('date', 0)))
+                 }
+
+    def direct_query_for_id(self, kink_id):
+        properties = {"shootid": kink_id}
         if not kink_id:
-            return properties
+            return [properties]
 
-        content = self.make_request_get("http://kink.com/shoot/{}".format(kink_id))
+        content = self.make_request_get(self.base_url+"/shoot/{}".format(kink_id))
         if content:
             _bs = bs4.BeautifulSoup(content, "html5lib")
             if _bs.title.text:
+                properties['exists'] = True
                 try:
                     # Get link of the site from a.href
                     site_logo_ = _bs.body.find('div', attrs={"class": "column shoot-logo"})
@@ -127,10 +142,35 @@ class KinkAPI:
                         logging.warning('Could not parse date, exception was: {}'.format(e))
             else:
                 logging.error('404! No shoot with id {}'.format(kink_id))
+                properties['exists'] = False
         else:
             logging.error('Could not connect to site')
 
-        return properties
+        return [properties]
+
+    def api_query_for_date(self, date_):
+        shoot = self.make_request_get(self.api_url + '/shoot_date/{}'.format(date_))
+        shoot_j = self._to_json(shoot)
+
+        return self._api_to_properties(shoot_j)
+
+    def cached_query_for_date(self, date_):
+        shoots_ = self._cache.get('shoots', [])
+        shoots = [s for s in shoots_ if s.get('date', -1) == date_]
+
+        return [self._api_result_to_properties(s) for s in shoots]
+
+    def api_query_for_title(self, title):
+        shoots = self.make_request_get(self.api_url + '/shoot_title/{}'.format(title))
+        shoots_j = self._to_json(shoots)
+
+        return self._api_to_properties(shoots_j)
+
+    def cached_query_for_title(self, title):
+        shoots_ = self._cache.get('shoots', [])
+        shoots = [s for s in shoots_ if re.search(title, s.get('title', ''))]
+
+        return [self._api_result_to_properties(s) for s in shoots]
 
     @staticmethod
     def get_shootid_through_metadata(file_path):
