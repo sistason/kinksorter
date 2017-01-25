@@ -44,6 +44,9 @@ class KinkSorter:
         except KeyboardInterrupt as e:
             logging.info('Saving Database and exiting...')
             self.database.write()
+            import sys
+            sys.exit(0)
+        except Exception as e:
             raise e
 
         self.database.write()
@@ -135,10 +138,11 @@ class KinkSorter:
                 # Duplicate! Keep the one with bigger file size ;)
                 old_movie_size_ = os.stat(new_movie_path).st_size
                 new_movie_size_ = os.stat(movie.file_path).st_size
-                if old_movie_size_ >= new_movie_size_:
+                if old_movie_size_ > new_movie_size_:
                     logging.debug('"{}" was duplicate of "{}", but was smaller and is therefore skipped'.format(
                         movie, new_movie_path))
                     continue
+
                 os.remove(new_movie_path)
 
             self._move_movie(old_movie_path, new_movie_path)

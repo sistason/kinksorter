@@ -41,6 +41,7 @@ def get_correct_api(apis, dir_name):
     for name, api in apis.items():
         if api is None:
             continue
+
         responsibilities = api.get_site_responsibilities()
         for resp in responsibilities:
             score = fuzz.token_set_ratio(dir_name, resp)

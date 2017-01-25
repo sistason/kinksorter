@@ -60,6 +60,11 @@ class Movie:
                     return
             else:
                 logging.info('File "{}" most likely has the wrong API or is (mildly) corrupted'.format(self.base_name))
+                results = self.api.query_for_id(shootid_nr)
+                result = self.interactive_confirm(results)
+                if result:
+                    self.properties.update(result)
+                    return
 
         t_ = re.search(r"\d{4}\W\d{1,2}\W\d{1,2}", self.base_name)
         likely_date = t_.group(0) if t_ else ''
@@ -70,25 +75,37 @@ class Movie:
         search_shootid = []
 
         # \D does not match ^|$, so we pad it with something irrelevant
-        for pre_, k, post_ in re.findall(r"(\D)(\d{2,6})(\D)", '%'+base_name+'%'):
-            shootid = int(k)
-            if shootid in self.UNLIKELY_NUMBERS['date']:
-                logging.debug('Most likely no shootid ({}), but a year. Skipping...'.format(k))
-                continue
-            if self._unlikely_shootid_date_re.search(k):
-                logging.debug('Most likely no shootid ({}), but a date. Skipping...'.format(k))
-                continue
-            if shootid < 200:
-                logging.debug('Most likely no shootid ({}), but a day/month/age/number. Skipping...'.format(k))
-                continue
-            if shootid in self.UNLIKELY_NUMBERS['quality'] and (pre_ != '(' or post_ != ')'):
-                logging.debug('Most likely no shootid ({}{}{}), but a quality. Skipping...'.format(pre_, k, post_))
-                continue
+        search_name = '%' + base_name + '%'
 
-            search_shootid.append(shootid)
+        search_match = 1
+        while search_match:
+            search_name = search_name[search_match.end() - 1:] if search_match != 1 else search_name
+
+            # Search with re.search instead of re.findall, as pre/post can be interleaved and regexps capture
+            search_match = re.search(r"(\D)(\d{2,6})(\D)", search_name)
+            if search_match:
+                pre_, k, post_ = search_match.groups()
+                shootid = int(k)
+                if shootid in self.UNLIKELY_NUMBERS['date']:
+                    logging.debug('Most likely no shootid ({}), but a year. Skipping...'.format(k))
+                    continue
+                if self._unlikely_shootid_date_re.search(k):
+                    logging.debug('Most likely no shootid ({}), but a date. Skipping...'.format(k))
+                    continue
+                if shootid < 200:
+                    logging.debug('Most likely no shootid ({}), but a day/month/age/number. Skipping...'.format(k))
+                    continue
+                if shootid in self.UNLIKELY_NUMBERS['quality'] and (pre_ != '(' or post_ != ')'):
+                    logging.debug('Most likely no shootid ({}{}{}), but a quality. Skipping...'.format(pre_, k, post_))
+                    continue
+                if pre_ in ['(', '['] and post_ in [')', ']']:
+                    return [shootid]
+
+                search_shootid.append(shootid)
 
         if len(search_shootid) > 1:
             logging.info('Multiple Shoot IDs found, choose one')
+
         return search_shootid
 
     def interactive_query(self, likely_date=''):
@@ -187,7 +204,7 @@ class Movie:
 
 def format_movie(movie):
     if movie_is_empty(movie):
-        return '<untagged> | {}_{}{}'.format(movie.subdirname, movie.base_name, movie.extension)
+        return '<untagged> | {}_{}{}'.format(movie.subdirname, movie.base_name, movie.extension).replace('/','_')
     ret = ''
     if not movie_is_filled(movie):
         ret = movie.base_name + ' <incomplete_tagged> | '
@@ -199,7 +216,7 @@ def format_movie(movie):
         perfs=', '.join(movie.properties.get('performers', '')),
         shootid=movie.properties.get('shootid', ''),
         ext=movie.extension)
-    return ret
+    return ret.replace('/','_')
 
 
 class Fake:

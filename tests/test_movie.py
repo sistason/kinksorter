@@ -24,8 +24,10 @@ class MovieShould(unittest.TestCase):
         assert_that(self.movie.get_shootids('1999-12345-2007'), contains(12345))
         assert_that(self.movie.get_shootids('2007'), equal_to([]))
         assert_that(self.movie.get_shootids('1080p'), equal_to([]))
-        assert_that(self.movie.get_shootids('1080'), contains(1080))
-        assert_that(self.movie.get_shootids('1080 720'), contains(1080, 720))
+        assert_that(self.movie.get_shootids('1080'), equal_to([]))
+        assert_that(self.movie.get_shootids('(1080)'), contains(1080))
+        assert_that(self.movie.get_shootids('1080 720'), equal_to([]))
+        assert_that(self.movie.get_shootids('1080 (720)'), contains(720))
         assert_that(self.movie.get_shootids('12345 1234'), contains(12345, 1234))
         assert_that(self.movie.get_shootids('2016-01-12'), equal_to([]))
         assert_that(self.movie.get_shootids('123456789'), equal_to([]))
@@ -36,6 +38,9 @@ class MovieShould(unittest.TestCase):
         assert_that(movie_is_empty(self.movie), equal_to(True))
         assert_that(movie_is_filled(self.movie), equal_to(False))
         assert_that(self.movie == self.movie, equal_to(True))
+
+    def test_name(self):
+        assert_that(self.movie.get_shootids("Waterbondage - 2006-04-21 3546 - Ava.wmv"), contains(3546))
 
 
 if __name__ == "__main__":
