@@ -23,7 +23,7 @@ class KinksorterShould(unittest.TestCase):
         if settings.apis.get('Default', None) is not None:
             settings.apis['Default']._site_capabilities = []
         self.kinksorter = KinkSorter(self.root_storage.name, settings)
-        self.kinksorter._get_mime_type = MagicMock(return_value=b"video/")
+        self.kinksorter._is_video_file = MagicMock(return_value=b"video/")
 
         self.file1 = tempfile.NamedTemporaryFile(dir=self.root_storage.name, delete=False)
         self.file2 = tempfile.NamedTemporaryFile(dir=self.root_storage.name, delete=False)

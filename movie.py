@@ -3,14 +3,15 @@ import logging
 import datetime
 import os
 
+import utils
+
 
 class Movie:
     UNLIKELY_NUMBERS = {'quality': [360, 480, 720, 1080, 1440, 2160],
                         'date': list(range(1970, 2030))}
     settings = None
 
-    def __init__(self, file_path, api, properties=None):
-        self.file_path = file_path
+    def __init__(self, file_properties, api=None, scene_properties=None):
         # Filter out dates like 091224 or (20)150101
         self._unlikely_shootid_date_re = re.compile('([01]\d)({})({})'.format(
             '|'.join(['{:02}'.format(i) for i in range(1, 13)]),
@@ -18,60 +19,93 @@ class Movie:
         ))
         self.api = api
 
-        base_path_, filename_ = os.path.split(file_path)
-        _, self.subdirname = os.path.split(base_path_)
-        self.base_name, self.extension = os.path.splitext(filename_)
+        if type(file_properties) is dict:
+            self.file_properties = utils.FileProperties(**file_properties)
+        else:
+            self.file_properties = file_properties
 
-        if properties is None:
-            properties = {}
-        self.properties = {'title': '', 'performers': [], 'date': datetime.date(1970, 1, 1), 'site': '', 'shootid': 0}
-        self.properties.update(properties)
+        if type(scene_properties) is dict:
+            self.scene_properties = utils.SceneProperties(**scene_properties)
+        elif type(scene_properties) is utils.SceneProperties:
+            self.scene_properties = scene_properties
+        else:
+            self.scene_properties = utils.SceneProperties()
 
         if self.settings is None:
             logging.warning('Settings were not set by calling class! This will break!')
 
+    def serialize(self):
+        return {'file_properties': self.file_properties.serialize(),
+                'api': self.api.name if self.api is not None else None,
+                'scene_properties': self.scene_properties.serialize()}
+
     def update_details(self):
         if self.api is None:
+            logging.info('"{}" - No API, skipped.'.format(self.file_properties.print_base_name()))
             return
-        shootid_nr = 0
-        shootids_nr = self.get_shootids(self.base_name)
-        shootid_cv = self.api.get_shootid_through_image_recognition(self.file_path)
-        if shootids_nr:
-            if len(shootids_nr) > 1:
-                shootid_nr = self.interactive_choose_shootid(shootids_nr)
-            else:
-                shootid_nr = shootids_nr[0]
 
-        if shootid_nr == shootid_cv or shootid_cv > 0:
+        result = None
+        shootid, sure = self.get_shootid(self.file_properties.file_path)
+        if shootid:
+            results = self.api.query('shoots', 'shootid', shootid)
+            result = self.interactive_confirm(results, sure=sure)
+
+        if not result:
+            logging.info('"{}" - No result found, going interactive...'.format(self.file_properties.print_base_name()))
+            result = self.interactive_query()
+
+        if result:
+            self.scene_properties.update(result)
+        else:
+            logging.info('"{}" - Nothing found, leaving untagged'.format(self.file_properties.print_base_name()))
+
+    def get_shootid(self, file_path):
+        try:
+            shootid_cv = self.api.get_shootid_through_image_recognition(file_path)
+        except AttributeError:
+            shootid_cv = 0
+        try:
+            shootid_md = self.api.get_shootid_through_metadata(file_path)
+        except AttributeError:
+            shootid_md = 0
+
+        shootid_nr = 0
+        shootids_nr = self.get_shootids_from_filename(file_path)
+        if len(shootids_nr) > 1:
+            if shootid_cv and shootid_cv in shootids_nr:
+                shootid_nr = shootid_cv
+            elif shootid_cv and shootid_md in shootids_nr:
+                shootid_nr = shootid_md
+            else:
+                shootid_nr = self.interactive_choose_shootid(shootids_nr)
+        elif shootids_nr:
+            shootid_nr = shootids_nr[0]
+
+        logging.debug('Found shootids - cv: {}; md: {}; nr: {}'.format(shootid_cv, shootid_md, shootid_nr))
+        sure = False
+        shootid = 0
+        if (shootid_nr > 0 and shootid_nr == shootid_cv) or shootid_cv > 0 or shootid_md > 0:
             # Clear solution
-            results = self.api.query_for_id(shootid_cv)
-            result = self.interactive_confirm(results)
-            if result:
-                self.properties.update(result)
-                return
+            sure = True
+            shootid = shootid_cv if shootid_cv else shootid_md
         elif shootid_nr:
             # No image recognition, but a number is found => pre shootid-tagging in the video
             # Image recognition yields "-1" (error in video file), so trust shootid
-            if shootid_nr < 8000 or shootid_cv == -1:
-                results = self.api.query_for_id(shootid_nr)
-                result = self.interactive_confirm(results)
-                if result:
-                    self.properties.update(result)
-                    return
+            if shootid_nr < 1000:
+                logging.info('File "{}" has shootid<1000. Check this, could be wrongly detected'.format(
+                    self.file_properties.print_base_name()))
+            elif shootid_nr > 8000 and shootid_cv != -1:
+                logging.info('File "{}" has the wrong API or is (mildly) corrupted'.format(
+                    self.file_properties.print_base_name()))
             else:
-                logging.info('File "{}" most likely has the wrong API or is (mildly) corrupted'.format(self.base_name))
-                results = self.api.query_for_id(shootid_nr)
-                result = self.interactive_confirm(results)
-                if result:
-                    self.properties.update(result)
-                    return
+                sure = True
 
-        t_ = re.search(r"\d{4}\W\d{1,2}\W\d{1,2}", self.base_name)
-        likely_date = t_.group(0) if t_ else ''
-        result = self.interactive_query(likely_date)
-        self.properties.update(result)
+            shootid = shootid_nr
+        logging.debug('Chose shootid {}, sure: {}'.format(shootid, sure))
+        return shootid, sure
 
-    def get_shootids(self, base_name):
+    def get_shootids_from_filename(self, file_path):
+        base_name = os.path.basename(file_path)
         search_shootid = []
 
         # \D does not match ^|$, so we pad it with something irrelevant
@@ -87,13 +121,11 @@ class Movie:
                 pre_, k, post_ = search_match.groups()
                 shootid = int(k)
                 if shootid in self.UNLIKELY_NUMBERS['date']:
-                    logging.debug('Most likely no shootid ({}), but a year. Skipping...'.format(k))
                     continue
                 if self._unlikely_shootid_date_re.search(k):
                     logging.debug('Most likely no shootid ({}), but a date. Skipping...'.format(k))
                     continue
                 if shootid < 200:
-                    logging.debug('Most likely no shootid ({}), but a day/month/age/number. Skipping...'.format(k))
                     continue
                 if shootid in self.UNLIKELY_NUMBERS['quality'] and (pre_ != '(' or post_ != ')'):
                     logging.debug('Most likely no shootid ({}{}{}), but a quality. Skipping...'.format(pre_, k, post_))
@@ -104,144 +136,201 @@ class Movie:
                 search_shootid.append(shootid)
 
         if len(search_shootid) > 1:
-            logging.info('Multiple Shoot IDs found, choose one')
+            logging.info('Multiple Shoot IDs found')
 
         return search_shootid
 
-    def interactive_query(self, likely_date=''):
+    def interactive_query(self):
         if not self.settings.interactive:
             return {}
 
-        print('Unable to find anything to work automatically. Please help with input')
-        print('Movie in Question:', self.file_path, 'Likely date:', likely_date)
+        logging.info('Unable to find anything to work automatically. Please help with input')
 
         user_input = "don't stop yet :)"
         while user_input:
+            logging.info('Movie in Question: {}'.format(self.file_properties.file_path))
             user_input = input('Please input an ID, a data or a name of the movie in the format:\n  ' +
-                               'ID: i<id>; Date: d<date YYYY-mm-dd>; Name: <name>; Abort: <empty string>\n   ').strip()
+                               'ID: i<id>; Date: d<date YYYY-mm-dd>; '
+                               'Performer: p<Name>; Name: <name>; Abort: <empty string>\n   ').strip()
             if user_input.startswith('i'):
                 id_ = int(user_input[1:]) if user_input[1:].isdigit() else 0
                 if not id_:
-                    print('"{}" was no number, please repeat!'.format(user_input[1:]))
+                    logging.info('"{}" was no number, please repeat!'.format(user_input[1:]))
                     continue
-                results = self.api.query_for_id(id_)
+                results = self.api.query('shoots', 'shootid', id_)
+                if not results:
+                    logging.info('No results found, try something other')
+                    continue
                 result = self.interactive_confirm(results)
-                if result:
+                if result is not None:
                     return result
+
             elif user_input.startswith('d'):
-                date_string = user_input[1:]
+                date_string = user_input[1:].replace('.', '-')
                 try:
-                    date_ = datetime.datetime.strptime(date_string, '%Y-%m-%d').date()
-                    print('Date interpreted as {}'.format(date_))
+                    if date_string.isdigit():
+                        date_ = datetime.datetime.strptime(date_string, '%s').date()
+                    else:
+                        date_ = datetime.datetime.strptime(date_string, '%Y-%m-%d').date()
+                    logging.info('Date interpreted as {}'.format(date_))
                 except (ValueError, AttributeError):
-                    print('Could not parse date "{}".'.format(date_string))
+                    logging.info('Could not parse date "{}".'.format(date_string))
                     continue
-                results = self.api.query_for_date(date_)
+                date_ = date_.strftime('%s')
+                results = self.api.query('shoots', 'date', str(date_))
+                if not results:
+                    logging.info('No results found, try something other')
+                    continue
                 result = self.interactive_confirm(results)
-                if result:
+                if result is not None:
                     return result
+
+            elif user_input.startswith('p'):
+                performer_string = user_input[1:]
+                if ',' not in performer_string:
+                    results = self.api.query('performers', 'name', performer_string)
+                    if not results:
+                        logging.info('No results found, try something other')
+                        continue
+                    result = self._interactive_select_match(results)
+                    if not result or 'number' not in result:
+                        continue
+                    results = self.api.query_api('shoots', 'performers_number', result['number'])
+                else:
+                    # Query API, since it has aggregated functions (like performers_names), the cache is just a list
+                    results = self.api.query_api('shoots', 'performers_names', performer_string)
+                result = self.interactive_confirm(results)
+                if result is not None:
+                    return result
+
             elif user_input:
                 name_ = user_input
-                results = self.api.query_for_name(name_)
+                results = self.api.query('shoots', 'title', name_)
                 result = self.interactive_confirm(results)
-                if result:
+                if result is not None:
                     return result
+
             else:
-                print('Leaving movie "{}" untagged.'.format(self.base_name))
-                continue
+                break
 
         return {}
 
-    def interactive_confirm(self, results):
-        if self.settings.interactive and len(results) != 1:
-            print('Possible matches:\n')
-            print('\t0: None of the below')
-            for i, result in enumerate(results):
-                print('\t{}: {}'.format(i+1, format_properties(result)))
-            selection = input('Select the correct number')
-            result = results[selection+1] if selection != 0 else {}
-        else:
-            result = results[0]
+    def interactive_confirm(self, results, sure=False):
+        result = self._interactive_select_match(results)
+        if result and result.get('exists', True):
+            logging.info('old: {}'.format(self.file_properties.base_name))
+            logging.info('new: {}'.format(self.format_shoot_dict(result)))
+            answer = input('Is this okay? Y, n?') if self.settings.interactive and not sure else 'Y'
+            if not answer or answer.lower().startswith('y'):
+                return result
+        return None
 
-        if self._interactive_confirm_helper(result):
-            return result
+    def _interactive_select_match(self, results):
+        """ Print all matches of shoot/Performers/site and let the user choose one.
 
-    def _interactive_confirm_helper(self, result):
-        logging.info('\told: {}{}'.format(self.base_name, self.extension))
-        logging.info('\tnew: {}'.format(format_properties(result)))
-        answer = input('Is this okay? Y, n?') if self.settings.interactive else 'Y'
-        return True if not answer or answer.lower().startswith('y') else False
+        Returns the first element when noninteractive or just 1 element
+        Returns the chosen element when something is chosen
+        Returns {} when the user chooses to abort
+        Returns the input when the input is not a list (e.g. no need for selecting)
+        """
+        if type(results) == list:
+            if self.settings.interactive and len(results) > 1:
+                results.sort(key=lambda f: f.get('date', 0))
+                logging.info('Possible matches:')
+                logging.info('\t0: None of the below')
+                for i, result in enumerate(results):
+                    logging.info('\t{}: {}'.format(i + 1, self.format_result_dict(result)))
 
-    def interactive_choose_shootid(self, likely_ids):
-        if not self.settings.interactive:
-            return max(likely_ids)
+                while True:
+                    selection = input('Select the correct number: ')
+                    if not selection or selection == '0':
+                        return {}
+                    if selection.isdigit() and int(selection) <= len(results):
+                        return results[int(selection) - 1]
 
-        id_ = None
-        while not id_ or not id_.isdigit():
-            try:
-                id_ = input('Choose the Shoot ID of file "{}". Likely are:\n\t{}'.format(
-                                        self.file_path, '\n\t'.join(map(str, likely_ids))))
-            except KeyboardInterrupt:
-                return 0
-        return int(id_)
+            if len(results) == 0:
+                return results
+
+            return results[0]
+
+        return results
+
+    def interactive_choose_shootid(self, results):
+        """ Print all shootids and let the user choose one.
+
+        Returns the biggest element when noninteractive or just 1 element
+        Returns the chosen element when something is chosen
+        Returns 0 when the user chooses to abort
+        Returns 0 when the input is not a list (e.g. doesn't fit)
+        """
+        if not self.settings.interactive or len(results) == 1:
+            return max(results)
+
+        results.sort()
+        logging.info('Choose the Shoot ID of file "{}"'.format(self.file_properties.file_path))
+        logging.info('\t0: None of the below')
+        for i, result in enumerate(results):
+            logging.info('\t{}: {}'.format(i + 1, result))
+
+        while True:
+            selection = input('Select the correct number or an own shootid: ')
+            if not selection or selection == '0':
+                break
+            if selection.isdigit():
+                sel = int(selection)
+                return results[sel - 1] if sel <= len(results) else sel
+
+        return 0
+
+    def format_result_dict(self, result):
+        if 'is_partner' in result.keys():
+            return result.get('name', '<No Name>')
+        if 'number' in result.keys():
+            return '{} ({}) - [{}]'.format(result.get('name', '<No Name>'), result.get('number', ''), str(result)[:40])
+        if 'shootid' in result.keys():
+            if not result.get('exists', False):
+                return '<Shootid {} does not exist>'.format(result.get('shootid'))
+            else:
+                return self.format_shoot_dict(result)
+
+    @staticmethod
+    def format_shoot_dict(result):
+        scene_properties_tmp = utils.SceneProperties(**result)
+        return str(scene_properties_tmp)
 
     def __eq__(self, other):
-        if movie_is_empty(self) and movie_is_empty(other):
-            return self.base_name == other.base_name
-        return self.file_path == other.file_path or \
-            (self.properties.get('title', '') == other.properties.get('title', '')
-                and self.properties.get('performers', []) == other.properties.get('performers', [])
-                and self.properties.get('date', None) == other.properties.get('date', None)
-                and self.properties.get('site', '') == other.properties.get('site', '')
-                and self.properties.get('shootid', 0) == other.properties.get('shootid', 0))
+        if self.scene_properties.is_empty() and other.scene_properties.is_empty():
+            return self.file_properties.base_name == other.file_properties.base_name
+        return (self.file_properties.file_path == other.file_properties.file_path
+               or self.scene_properties == other.scene_properties)
 
     def __str__(self):
-        return format_movie(self)
+        if self.scene_properties.is_empty():
+            if self.file_properties.base_name.startswith('[<untagged>]'):
+                return '{p.base_name}{p.extension}'.format(p=self.file_properties).replace('/', '_')
+            return '[<untagged>] {p.base_name}{p.extension}'.format(
+                p=self.file_properties).replace('/', '_')
+
+        ret = str(self.scene_properties)
+        if not self.scene_properties.is_filled():
+            ret += ' | [<incompletely_tagged>] {p.base_name}{p.extension}'.format(p=self.file_properties)
+
+        ret += self.file_properties.extension
+        return ret.replace('/', '_')
 
     def __bool__(self):
-        return movie_is_filled(self)
+        return self.scene_properties.is_filled()
 
+if __name__ == '__main__':
+    import sys
+    path = sys.argv[1]
+    logging.basicConfig(format='%(funcName)-30s: %(message)s',
+                        level=logging.DEBUG)
+    file_properties_ = utils.FileProperties(path, storage_root_path='')
+    settings_ = utils.Settings({'shootid_template_dir': 'apis/templates'})
+    Movie.settings = settings_
+    m = Movie(file_properties=file_properties_, api=settings_.apis.get('Kink.com', None), scene_properties=None)
 
-def format_movie(movie):
-    if movie_is_empty(movie):
-        return '<untagged> | {}_{}{}'.format(movie.subdirname, movie.base_name, movie.extension).replace('/','_')
-    ret = ''
-    if not movie_is_filled(movie):
-        ret = movie.base_name + ' <incomplete_tagged> | '
+    m.update_details()
 
-    ret += '{site} - {date} - {title} [{perfs}] ({shootid}){ext}'.format(
-        site=movie.properties.get('site', '').replace(' ', ''),
-        date=movie.properties.get('date', ''),
-        title=movie.properties.get('title', ''),
-        perfs=', '.join(movie.properties.get('performers', '')),
-        shootid=movie.properties.get('shootid', ''),
-        ext=movie.extension)
-    return ret.replace('/','_')
-
-
-class Fake:
-    def __init__(self, p, b=''):
-        self.properties = p
-        self.base_name = b
-        self.subdirname = 'fake'
-        self.extension = ''
-
-
-def format_properties(properties):
-    return format_movie(Fake(properties))
-
-
-def movie_is_filled(movie):
-    return bool(movie.properties.get('title', False)
-                and movie.properties.get('performers', False)
-                and movie.properties.get('site', False)
-                and 'date' in movie.properties and int(movie.properties['date'].strftime("%s")) > 0
-                and movie.properties.get('shootid', 0) > 0)
-
-
-def movie_is_empty(movie):
-    return bool(not movie.properties.get('title', True)
-                and not movie.properties.get('performers', True)
-                and not movie.properties.get('site', True)
-                and ('date' not in movie.properties or int(movie.properties['date'].strftime("%s")) <= 0)
-                and movie.properties.get('shootid', 0) == 0)
+    print(m)

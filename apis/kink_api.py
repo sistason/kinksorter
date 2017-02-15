@@ -8,6 +8,7 @@ import subprocess
 import os
 import json
 import re
+import tempfile
 
 
 from apis.base_api import BaseAPI
@@ -18,10 +19,14 @@ class KinkAPI(BaseAPI):
     base_url = 'https://www.kink.com'
     api_url = 'https://www.kinkyapi.site/kinkcom'
 
-    def __init__(self, templates=None):
-        super().__init__()
+    def __init__(self, templates=None, use_api=True):
+        super().__init__(use_api=use_api)
 
-        self.shootid_templates = templates
+        self.shootid_templates = []
+        for t in templates:
+            if t.dtype != np.dtype('uint8'):
+                t = cv2.cvtColor(t, cv2.COLOR_BGR2GRAY)
+            self.shootid_templates.append(t)
 
     def set_cookies(self):
         if self._use_api:
@@ -32,10 +37,7 @@ class KinkAPI(BaseAPI):
         _cookies['viewing-preferences'] = 'straight,gay'
         self._cookies = _cookies
 
-    def get_site_responsibilities(self):
-        if self._site_capabilities is not None:
-            return self._site_capabilities
-
+    def _get_direct_site_responsibilities(self):
         channel_names = []
         content = self.make_request_get(self.base_url+"/channels")
         soup = bs4.BeautifulSoup(content, 'html5lib')
@@ -49,53 +51,83 @@ class KinkAPI(BaseAPI):
                         channel_names.append(channel_)
                         channel_names.append(''.join([c[0] for c in channel_.split()]))
 
-            self._site_capabilities = channel_names
-        return channel_names
+        return channel_names if channel_names else None
+
+    def _get_api_site_responsibilities(self):
+        channel_names = []
+        sites_ = self.make_request_get(self.api_url+"/site/.*")
+        sites_j = self._to_json(sites_)
+        if sites_j.get('errors', False):
+            logging.error("Could not get site_responsibilities from API. Error: {}".format(sites_j.get('errors', '<>')))
+            return None
+
+        for site in sites_j.get('results', []):
+            name = site.get('name', '')
+            channel_names.append(name)
+            channel_names.append(''.join([n[0] for n in name.split()]))
+
+        return channel_names if channel_names else None
 
     def _update_cache(self):
         shoots = self.make_request_get(self.api_url + '/dump_shoots')
-        models = self.make_request_get(self.api_url + '/dump_models')
+        if not shoots:
+            # Don't continue, as if we get empty here, our thread was interrupted / no internet => no cache available
+            return
+
+        performers = self.make_request_get(self.api_url + '/dump_performers')
+        if not performers:
+            return
 
         shoots_j = self._to_json(shoots)
-        models_j = self._to_json(models)
+        performers_j = self._to_json(performers)
 
-        self._cache = {'shoots': shoots_j.get('results', []), 'models': models_j.get('results', [])}
+        self._cache = {'shoots': shoots_j.get('results', []), 'performers': performers_j.get('results', [])}
         self._cache_updating = False
 
-    def cached_query_for_id(self, kink_id):
-        shoots = self._cache.get('shoots', [])
-        for s in shoots:
-            if s.get('shootid', 0) == kink_id:
-                shoot = s
-                break
-        else:
-            return []
-
-        return [self._api_result_to_properties(shoot)]
-
-    def api_query_for_id(self, kink_id):
-        shoots = self.make_request_get(self.api_url + '/shoot/{}'.format(kink_id))
-        shoots_j = self._to_json(shoots)
-
-        return self._api_to_properties(shoots_j)
-
-    def _api_to_properties(self, json_response):
-        if json_response.get('errors', True):
-            return []
-
-        return [self._api_result_to_properties(r) for r in json_response.get('results', [])]
-
     @staticmethod
-    def _api_result_to_properties(json_result):
-        return {'shootid': int(json_result.get('shootid', 0)),
-                'exists': json_result.get('exists', False),
-                'site': json_result.get('site', {}).get('name', None),
-                'title': json_result.get('title', None),
-                'performers': [i.get('name', '') for i in json_result.get('performers', [])],
-                'date': datetime.date.fromtimestamp(int(json_result.get('date', 0)))
-                 }
+    def _api_results_to_properties(type_, json_results):
+        if type_ == 'shoots':
+            return [{'shootid': int(json_result.get('shootid', 0)),
+                     'exists': json_result.get('exists', False),
+                     'site': json_result.get('site', {}).get('name', None),
+                     'title': json_result.get('title', None),
+                     'performers': [i.get('name', '') for i in json_result.get('performers', [])],
+                     'date': datetime.date.fromtimestamp(int(json_result.get('date', 0)))
+                     } for json_result in json_results]
+        if type_ == 'performers':
+            return json_results
+        if type_ == 'sites':
+            return json_results
 
-    def direct_query_for_id(self, kink_id):
+        return []
+
+    def query_cache(self, type_, by_property, value):
+        results = []
+        if by_property == 'date':
+            print(type_, by_property, value)
+            print(len(self._cache.get('shoots', [])))
+            print(len(self._cache.get(type_, [])))
+            print(self._cache.keys())
+            print(self._cache.get(type_, [])[1])
+            print(self._cache.get(type_, [])[1].get('date', ''))
+            print(value)
+        for t_ in self._cache.get(type_, []):
+            if by_property in ['title', 'name'] and re.search(value, t_.get(by_property, '')) or \
+               value == t_.get(by_property, ''):
+                results.append(t_)
+
+        return self._api_results_to_properties(type_, results)
+
+    def query_api(self, type_, by_property_, value_):
+        results = self.make_request_get(self.api_url + '/{}_{}/{}'.format(type_[:-1], by_property_, value_))
+        results_j = self._to_json(results)
+
+        if results_j.get('errors', True):
+            return []
+
+        return self._api_results_to_properties(type_, results_j.get('results', []))
+
+    def query_direct_shoot_id(self, kink_id):
         properties = {"shootid": kink_id}
         if not kink_id:
             return [properties]
@@ -148,30 +180,6 @@ class KinkAPI(BaseAPI):
 
         return [properties]
 
-    def api_query_for_date(self, date_):
-        shoot = self.make_request_get(self.api_url + '/shoot_date/{}'.format(date_))
-        shoot_j = self._to_json(shoot)
-
-        return self._api_to_properties(shoot_j)
-
-    def cached_query_for_date(self, date_):
-        shoots_ = self._cache.get('shoots', [])
-        shoots = [s for s in shoots_ if s.get('date', -1) == date_]
-
-        return [self._api_result_to_properties(s) for s in shoots]
-
-    def api_query_for_title(self, title):
-        shoots = self.make_request_get(self.api_url + '/shoot_title/{}'.format(title))
-        shoots_j = self._to_json(shoots)
-
-        return self._api_to_properties(shoots_j)
-
-    def cached_query_for_title(self, title):
-        shoots_ = self._cache.get('shoots', [])
-        shoots = [s for s in shoots_ if re.search(title, s.get('title', ''))]
-
-        return [self._api_result_to_properties(s) for s in shoots]
-
     @staticmethod
     def get_shootid_through_metadata(file_path):
         """ Works only on Kink.com movies from around 3500-4500 """
@@ -184,81 +192,85 @@ class KinkAPI(BaseAPI):
             return 0
 
     def get_shootid_through_image_recognition(self, file_path):
-        """ Works only on Kink.com movies after ~ """
-        capture = cv2.VideoCapture(file_path)
-        frame_count = capture.get(cv2.CAP_PROP_FRAME_COUNT)
-        if not frame_count:
-            logging.debug('No frames to recognize found for file "{}"'.format(file_path))
+        """ Works only on Kink.com movies after ~2007 """
+        red_frame = self._get_fitting_frame(file_path)
+        if red_frame is None:
             return -1
-        template = self.shootid_templates[0] if self.shootid_templates else None
-        if template is None:
-            logging.debug('No template to recognize shootids')
-            return -1
-        fps = capture.get(cv2.CAP_PROP_FPS)
-        ret = capture.set(cv2.CAP_PROP_POS_FRAMES, frame_count - int(4 * fps))
-        frame_list = []
 
-        # capture is sometimes not able to read at the end, so read the last possible frame
-        current_frame = capture.get(cv2.CAP_PROP_POS_FRAMES)
-        if current_frame != frame_count:
-            ret = capture.set(cv2.CAP_PROP_POS_FRAMES, current_frame-1)
+        shootid_crop = None
+        for template in self.shootid_templates:
+            template_shape, max_loc = self._match_template(red_frame, template)
+            if max_loc is not None:
+                shootid_crop = red_frame[max_loc[1]:max_loc[1] + template_shape[0], max_loc[0] + template_shape[1]:]
 
-        while ret:
-            ret, frame_ = capture.read()
-            if ret:
-                frame_list.append((frame_.max(), frame_))
-
-        if not frame_list:
-            logging.debug('No frames readable in the last seconds of file "{}"'.format(file_path))
-            return -1
-        frame_list.sort(key=lambda f: f[0])
-        best_frame = frame_list[-1][1]
-
-        red_frame = best_frame[:, :, 2]
-
-        if template.dtype != np.dtype('uint8'):
-            template = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-
-        height, width = red_frame.shape
-        # Template is for 720p image, so scale it accordingly
-        scale = height/720.0
-        template_scaled = cv2.resize(template.copy(), (0,0), fx=scale, fy=scale)
-
-        result = cv2.matchTemplate(red_frame, template_scaled, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, max_loc = cv2.minMaxLoc(result)
-        if max_val < 0.6:
-            # Try other templates, which were used before 2009
-            templates_older = self.shootid_templates[1:] if len(self.shootid_templates) > 1 else []
-            for template_older in templates_older:
-                template_scaled = cv2.resize(template_older.copy(), (0, 0), fx=scale, fy=scale)
-                result = cv2.matchTemplate(red_frame, template_scaled, cv2.TM_CCOEFF_NORMED)
-                _, max_val, _, max_loc = cv2.minMaxLoc(result)
-                if max_val >= 0.6:
-                    break
-            else:
-                r_ = result.copy()
-                cv2.normalize(result, r_, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
-                r_ = cv2.cvtColor(r_, cv2.COLOR_GRAY2BGR)
-                cv2.circle(r_, max_loc, 5, (0, 0, 255))
-                logging.debug('Template for shootid doesn\'t match ({:.2}<0.7) for file "{}"'.format(max_val, file_path))
-                return 0
-
-        template_height, template_width = template_scaled.shape
-        shootid_crop = red_frame[max_loc[1]:max_loc[1] + template_height, max_loc[0] + template_width:]
+        if shootid_crop is None:
+            logging.debug('Templates for shootid did not match file "{}"'.format(file_path))
+            return 0
 
         shootid = self.recognize_shootid(shootid_crop)
         if not shootid:
             logging.debug('Tesseract couldn\'t recognize digits for file "{}"'.format(file_path))
-            self.debug_frame(shootid_crop)
+            if logging.getLogger(self.__class__.__name__).level == logging.DEBUG:
+                self.debug_frame(shootid_crop)
 
         return shootid
 
+    def _match_template(self, red_frame, template):
+        height, width = red_frame.shape
+        # Template is for 720p image, so scale it accordingly
+        scale = height / 720.0
+        template_scaled = cv2.resize(template.copy(), (0, 0), fx=scale, fy=scale)
+        result = cv2.matchTemplate(red_frame, template_scaled, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(result)
+        return template_scaled.shape, max_loc if max_val > 0.6 else None
+
+    def _get_fitting_frame(self, file_path):
+        if not self.shootid_templates:
+            logging.debug('No template to recognize shootids')
+            return None
+
+        capture = cv2.VideoCapture(file_path)
+        fps, frame_count = self._prepare_capture(capture)
+        if not frame_count:
+            logging.debug('No frames to recognize found for file "{}"'.format(file_path))
+            return None
+
+        analysis_range = int(frame_count - 3 * fps)
+        frame_steps = int(fps / 3)
+        next_frame = frame_count - 1
+        red_frame = None
+        while red_frame is None and next_frame >= analysis_range:
+            red_frame = self._get_next_frame(capture, next_frame)
+            next_frame -= frame_steps
+
+        capture.release()
+        if red_frame is None:
+            logging.debug('No suitable frames found in the last seconds of file "{}"'.format(file_path))
+        return red_frame
+
+    def _prepare_capture(self, capture):
+        # TODO: ignore errors of capture.set of partial files
+        frame_count = capture.get(cv2.CAP_PROP_FRAME_COUNT)
+        fps = capture.get(cv2.CAP_PROP_FPS)
+        # Seek until the end, or adapt the end of the file if not possible
+        capture.set(cv2.CAP_PROP_POS_FRAMES, frame_count)
+        frame_count = capture.get(cv2.CAP_PROP_POS_FRAMES)
+        return fps, frame_count
+
+    def _get_next_frame(self, capture, next_frame):
+        capture.set(cv2.CAP_PROP_POS_FRAMES, next_frame)
+        ret, frame_ = capture.read()
+        if ret and frame_.any() and (frame_[:, :] > 0).sum() / frame_.size < 0.1:
+            red_frame = cv2.inRange(cv2.cvtColor(frame_, cv2.COLOR_BGR2HSV), (0, 50, 50), (30, 255, 255))
+            return frame_[:, :, 2]
+
     @staticmethod
     def recognize_shootid(shootid_img):
-        # FIXME: filepath-independence by piping the image?
-        tmp_image = '/tmp/kinksorter_shootid.jpeg'
-        cv2.imwrite(tmp_image, shootid_img)
-        out = subprocess.run(['tesseract', tmp_image, 'stdout', 'digits'], stdout=subprocess.PIPE)
+        with tempfile.NamedTemporaryFile(suffix='.png') as f_:
+            tmp_path = f_.name
+        _, t_ = cv2.threshold(shootid_img, 100, 255, cv2.THRESH_BINARY)
+        cv2.imwrite(tmp_path, t_)
+        out = subprocess.run(['tesseract', tmp_path, 'stdout', 'digits'], stdout=subprocess.PIPE)
         output = out.stdout.decode()
         if ' ' in output:
             output = output.replace(' ', '')
@@ -273,27 +285,31 @@ class KinkAPI(BaseAPI):
 
 if __name__ == '__main__':
     from utils import Settings
-    settings = Settings({'shootid_template_dir':'templates/'})
+    settings = Settings({'shootid_template_dir': 'apis/templates/'})
     api_ = settings.apis['Kink.com']
     import sys
     from movie import Movie
     Movie.settings = settings
-    if len(sys.argv) == 1:
+    path_ = sys.argv[1]
+    if os.path.isdir(path_):
+        logging.basicConfig(format='%(funcName)s: %(message)s',
+                            level=logging.WARNING)
         with open('list.txt', 'w') as f:
-            for entry in os.scandir('/media/data/foo/BDSM/Electrosluts'):
+            for entry in os.scandir(path_):
                 print(entry.name)
-                mov = Movie(os.path.join('/media/data/foo/BDSM/Electrosluts', entry.path), api=api_)
+                mov = Movie(os.path.join(path_, entry.path), api=api_)
                 shootid_cv = api_.get_shootid_through_image_recognition(entry.path)
-                shootid_nr = mov.get_shootids(entry.path)
+                if shootid_cv <= 0:
+                    shootid_cv = api_.get_shootid_through_metadata(entry.path)
+                shootid_nr = mov.get_shootids_from_filename(entry.path)
                 if len(shootid_nr) == 1 and shootid_cv == shootid_nr[0] or \
                         not shootid_nr and shootid_cv:
                     continue
                 f.write("{} -> {}\n".format(entry.path, shootid_cv))
         sys.exit(0)
 
-    movie = sys.argv[1]
-
     logging.basicConfig(format='%(funcName)s: %(message)s',
                         level=logging.DEBUG)
-    print(api_.get_shootid_through_image_recognition(movie))
+
+    print(api_.get_shootid_through_image_recognition(path_))
 

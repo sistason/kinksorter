@@ -63,89 +63,35 @@ class BaseAPI:
             try:
                 r_ = requests.get(url, data=data, cookies=self._cookies, headers=self._headers, timeout=2)
                 ret = r_.text
-            except requests.Timeout:
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
                 retries -= 1
                 time.sleep(1)
             except Exception as e:
-                logging.debug('Caught Exception "{}" while making a get-request to "{}"'.format(e, url))
+                logging.debug('Caught Exception "{}" while making a get-request to "{}"'.format(e.__class__, url))
                 break
         return ret
 
-    def query_for_name(self, name):
-        """ Query the API or the cache for shoots matching that name """
-        if not self._use_api:
-            logging.warning('Not using the API makes it unable to query for name!')
-            return {}
+    def get_site_responsibilities(self):
+        """ Get responsibilities, e.g. which directory-name (==subsite) this API is capable of """
+        if self._site_capabilities is not None:
+            return self._site_capabilities
 
-        if self._cache or self._cache_updating:
-            while self._cache_updating:
-                time.sleep(1)
+        if self._use_api:
+            resps = self._get_api_site_responsibilities()
+        else:
+            resps = self._get_direct_site_responsibilities()
+        self._site_capabilities = resps
 
-            return self.cached_query_for_title(name)
-
-        return self.api_query_for_title(name)
+        return resps if resps is not None else []
 
     @NotImplementedError
-    def cached_query_for_title(self, name):
-        """ Use the API-cache to look shoots matching that name """
+    def _get_direct_site_responsibilities(self):
+        """ Get the site directly from the site """
         return
 
     @NotImplementedError
-    def api_query_for_title(self, name):
-        """ Query the API for shoots matching that name """
-        return
-
-    def query_for_date(self, date_):
-        """ Query the API or the cache for shoots matching that date """
-        if not self._use_api:
-            logging.warning('Not using the API makes it unable to query for date!')
-            return {}
-
-        if self._cache or self._cache_updating:
-            while self._cache_updating:
-                time.sleep(1)
-
-            return self.cached_query_for_date(date_)
-
-        return self.api_query_for_date(date_)
-
-    @NotImplementedError
-    def cached_query_for_date(self, date_):
-        """ Use the API-cache to look shoots matching that date """
-        return
-
-    @NotImplementedError
-    def api_query_for_date(self, date_):
-        """ Query the API for shoots matching that date """
-        return
-
-    def query_for_id(self, id_):
-        """ Query the API, the cache or the site directly for shoots matching that ID """
-        if not self._use_api:
-            return self.direct_query_for_id(id_)
-
-        if self._cache or self._cache_updating:
-            while self._cache_updating:
-                time.sleep(1)
-                print('waiting...')
-
-            return self.cached_query_for_id(id_)
-
-        return self.api_query_for_id(id_)
-
-    @NotImplementedError
-    def cached_query_for_id(self, id_):
-        """ Use the API-cache to look shoots matching that ID """
-        return
-
-    @NotImplementedError
-    def api_query_for_id(self, id_):
-        """ Query the API for shoots matching that ID """
-        return
-
-    @NotImplementedError
-    def direct_query_for_id(self, id_):
-        """ Query the site directly for shoots matching that ID """
+    def _get_api_site_responsibilities(self):
+        """ Get the site from the API """
         return
 
     @staticmethod
@@ -155,3 +101,46 @@ class BaseAPI:
             return json.loads(result)
         except json.JSONDecodeError:
             return {}
+
+    def query(self, type_, by_property_, value_):
+        """ Query the API, the cache or the site directly for $type matching $query """
+        if not self._use_api:
+            if type_ == 'shoots' and by_property_ == 'id':
+                return self.query_direct_shoot_id(value_)
+            else:
+                logging.warning('Not using the API makes it unable to query for {}!'.format(type))
+                return []
+
+        if self._cache_updating:
+            self._wait_for_cache()
+
+        if self._cache:
+            return self.query_cache(type_, by_property_, value_)
+        else:
+            return self.query_api(type_, by_property_, value_)
+
+    def _wait_for_cache(self):
+        i = 0
+        while self._cache_updating:
+            logging.info('Waiting for API-cache to be downloaded...')
+            time.sleep(2)
+            if i > 10:
+                logging.info('Tired of waiting for API-cache, disabling...')
+                self._cache_thread.join(timeout=1)
+                self._cache = None
+                self._cache_updating = False
+            i += 1
+
+    @NotImplementedError
+    def query_cache(self, type_, by_property_, value_):
+        """ Use the API-cache to get an item of "type" with by_property matching with query"""
+        return
+
+    @NotImplementedError
+    def query_api(self, type_, by_property_, value_):
+        """ Use the API to get an item of "type" with by_property matching with query"""
+        return
+
+    def query_direct_shoot_id(self, id_):
+        """ Query the site directly for shoots matching that ID """
+        return {}
