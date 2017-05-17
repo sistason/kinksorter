@@ -1,11 +1,5 @@
 import requests
-import bs4
 import logging
-import datetime
-import cv2
-import numpy as np
-import subprocess
-import os
 import json
 import threading
 import time

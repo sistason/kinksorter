@@ -87,37 +87,11 @@ class KinkSorter:
     def scan_address(self, address):
         """ Add all movies at the address to the database """
         if re.match(r'ftps?://', address):
-            self._scan_ftp(address)
+            pass
         elif re.match(r'https?://', address):
-            self._scan_http(address)
+            pass
         else:
             self._scan_directory(address.replace('file://', ''), self.settings.RECURSION_DEPTH)
-
-    def _scan_ftp(self, address):
-        listing = utils.get_ftp_listing(address)
-        for path_, (name_, facts) in listing.items():
-            full_path = os.path.join(path_, name_)
-            # TODO
-            #                self._current_site_api = utils.get_correct_api(self.settings.apis, path_)
-            #                name_ = self._current_site_api.name if self._current_site_api else '<None>'
-            #                logging.info('Scanning site-directory (API: {}) {}...'.format(name_, entry.path))
-
-            #                if ("media-type" in facts and "video/" != facts["media-type"]
-            #                    or "perm" in facts): # TODO: facts['perm'] == fitting
-
-            #                    logging.debug('\tAdding movie {}...'.format(full_path))
-            #                    m_ = Movie(full_path, api=self._current_site_api)
-            #                    self.database.add_movie(m_)
-
-
-            #                if recursion_depth > 0:
-            #                    self._scan_directory(full_path, recursion_depth)
-
-    def _scan_http(self, address):
-            listing = utils.get_http_listing(address)
-            for path_, (name_, facts) in listing.items():
-                full_path = os.path.join(path_, name_)
-                # TODO
 
     def _scan_directory(self, dir_, recursion_depth=0, root_path=None):
         # TODO: make dictionary tree structure, to have every directory with an API.
@@ -231,23 +205,18 @@ class KinkSorter:
                 os.removedirs(os.path.dirname(old_movie_path))
 
     def _move_movie(self, old_movie_path, new_movie_path):
-        if re.match(r'https?://|ftps?://', old_movie_path):
-            if self.settings.simulation:
-                self.database.add_to_merge_diff_list(old_movie_path)
-            else:
-                file_ = utils.get_remote_file(old_movie_path)
-                if file_ is not None and os.path.exists(file_):
-                    shutil.move(file_, new_movie_path)
+        # realpath, to be able to sort linked directories.
+        real_path = os.path.realpath(old_movie_path)
+        if self.settings.simulation:
+            if os.path.islink(old_movie_path):
+                os.remove(old_movie_path)
+            os.symlink(real_path, new_movie_path)
+            self.database.add_to_merge_diff_list(real_path)
         else:
-            # realpath, to be able to sort linked directories.
-            real_path = os.path.realpath(old_movie_path)
-            if self.settings.simulation:
-                if os.path.islink(old_movie_path):
-                    os.remove(old_movie_path)
-                os.symlink(real_path, new_movie_path)
-                self.database.add_to_merge_diff_list(real_path)
-            else:
+            if os.access(real_path, os.W_OK):
                 shutil.move(real_path, new_movie_path)
+            else:
+                shutil.copy(real_path, new_movie_path)
 
     def revert(self):
         storage_path, old_storage_name = os.path.split(self.storage_root_path)
@@ -275,13 +244,6 @@ class KinkSorter:
             sorted_site_path = os.path.join(sorted_path, site_)
             sorted_movie_path = os.path.join(sorted_site_path, movie_name)
             if os.path.exists(sorted_movie_path):
-                if re.match(r'https?://|ftps?://', path_):
-                    logging.info('Movie "{}" came from read-only storage'.format(movie_name))
-                    new_ro_dir = os.path.join(storage_path, 'from_read-only')
-                    if not os.path.exists(new_ro_dir):
-                        os.mkdir(new_ro_dir)
-                    path_ = os.path.join(new_ro_dir, site_, movie_name)
-
                 os.makedirs(os.path.dirname(path_), exist_ok=True)
                 shutil.move(sorted_movie_path, path_)
 
